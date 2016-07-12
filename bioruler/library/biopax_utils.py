@@ -12,6 +12,24 @@ def generate_family_action_node(family_id):
     return node
 
 
+def generate_family_source(family_id):
+    """."""
+    node = {
+        "id": "%s_family_s" % family_id,
+        "type": "FAM_s",
+    }
+    return node
+
+
+def generate_family_target(family_id):
+    """."""
+    node = {
+        "id": "%s_family_t" % family_id,
+        "type": "FAM_t",
+    }
+    return node
+
+
 def edge_from_ids(source, target, attributes=None):
     """."""
     edge = {
@@ -113,11 +131,11 @@ class BioPAXModel():
         xref = set(protein_reference.getXref())
         if len(xref) > 1:
             warnings.warn(
-                "Protein reference %s (%s) has ambiguous Unified Reference! Skipping the node..." %
+                "Protein reference %s (%s) has ambiguous Unified Reference!" %
                 (str(protein_reference.getName()), str(protein_reference)))
         elif len(xref) < 1:
             warnings.warn(
-                "Protein reference %s (%s) does not have Unified Reference! Skipping the node..." %
+                "Protein reference %s (%s) does not have Unified Reference!" %
                 (str(protein_reference.getName()), str(protein_reference)))
 
         protein_attrs = {}
@@ -127,6 +145,7 @@ class BioPAXModel():
         if len(xref) > 1:
             for el in xref:
                 protein_attrs[el.getDb()] = el.getId()
+
         protein_attrs["Name"] = list(protein_reference.getName())
         locations = set()
         for entity in protein_reference.getEntityReferenceOf():
@@ -238,19 +257,18 @@ class BioPAXModel():
         }
         return node
 
-
-        # molecule_attrs = {}
-        # molecule_attrs["Name"] = small_molecule.getName()
-        # if small_molecule.getCellularLocation() is not None:
-        #     molecule_attrs["location"] = small_molecule.getCellularLocation()
-        # if small_molecule.getMolecularWeight() is not None:
-        #     mole
-        # node = {
-        #     "id": small_molecule_id,
-        #     "type": small_molecule,
-        #     "attrs": molecule_attrs
-        # }
-        # return node
+    def complex_to_node(self, complex_id):
+        complex = self.model_.getByID(complex_id)
+        complex_attrs = {}
+        complex_attrs["Name"] = list(complex.getName())
+        if complex.getCellularLocation() is not None:
+            complex_attrs["loc"] = list(complex.getCellularLocation().getTerm())
+        node = {
+            "id": complex.getUri(),
+            "type": "complex",
+            "attrs": complex_attrs
+        }
+        return node
 
     def get_modifications(self, physical_entities):
         """."""
