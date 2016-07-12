@@ -32,15 +32,11 @@ metamodel_AG.add_nodes_from(
         ("family", "agent"),
         ("complex", "agent"),
         ("small_molecule", "agent"),
-        ("flag", "attribute_node"),
+        ("state", "attribute_node"),
 
         ("FAM", "action"),
         ("FAM_s", "action"),
         ("FAM_t", "action"),
-
-        ("COM", "action"),
-        ("COM_s", "action"),
-        ("COM_t", "action"),
 
         ("BND", "action"),
         ("BND_s", "action"),
@@ -65,13 +61,14 @@ metamodel_AG.add_edges_from(
         ("residue", "protein"),
 
         ("residue", "region"),
+        ("residue", "family"),
 
-        ("flag", "protein"),
-        ("flag", "region"),
-        ("flag", "residue"),
-        ("flag", "family"),
-        ("flag", "complex"),
-        ("flag", "small_molecule"),
+        ("state", "protein"),
+        ("state", "region"),
+        ("state", "residue"),
+        ("state", "family"),
+        ("state", "complex"),
+        ("state", "small_molecule"),
 
         ("BND_s", "BND"),
         ("protein", "BND_s"),
@@ -95,7 +92,7 @@ metamodel_AG.add_edges_from(
         ("family", "MOD_s"),
         ("complex", "MOD_s"),
         ("small_molecule", "MOD_s"),
-        ("MOD_t", "flag"),
+        ("MOD_t", "state"),
 
         ("FAM_s", "FAM"),
         ("FAM_t", "FAM"),
