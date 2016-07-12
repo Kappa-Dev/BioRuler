@@ -3,44 +3,6 @@ import warnings
 from jpype import (java, startJVM, getDefaultJVMPath, JPackage)
 
 
-def generate_family_action_node(family_id):
-    """."""
-    node = {
-        "id": "%s_family" % family_id,
-        "type": "FAM",
-    }
-    return node
-
-
-def generate_family_source(family_id):
-    """."""
-    node = {
-        "id": "%s_family_s" % family_id,
-        "type": "FAM_s",
-    }
-    return node
-
-
-def generate_family_target(family_id):
-    """."""
-    node = {
-        "id": "%s_family_t" % family_id,
-        "type": "FAM_t",
-    }
-    return node
-
-
-def edge_from_ids(source, target, attributes=None):
-    """."""
-    edge = {
-        "from": source,
-        "to": target
-    }
-    if attributes is not None:
-        edge["attrs"] = attributes
-    return edge
-
-
 class BioPAXModel():
 
     def __init__(self):
@@ -50,12 +12,6 @@ class BioPAXModel():
         self.paxtools_ = JPackage("org.biopax.paxtools")
         self.io_ = self.paxtools_.io.SimpleIOHandler(self.paxtools_.model.BioPAXLevel.L3)
 
-        # That's how we start extracting agents
-        # Protein
-        # Small molecule
-        # Rna
-        # Complex
-        # Dna
         self.protein_class_ = java.lang.Class.forName(
             "org.biopax.paxtools.model.level3.Protein", True,
             java.lang.ClassLoader.getSystemClassLoader())
@@ -126,7 +82,6 @@ class BioPAXModel():
 
     def protein_reference_to_node(self, protein_reference_id):
         """."""
-
         protein_reference = self.model_.getByID(protein_reference_id)
         xref = set(protein_reference.getXref())
         if len(xref) > 1:
@@ -154,12 +109,8 @@ class BioPAXModel():
                 locations.update(list(location.getTerm()))
         if len(locations) > 0:
             protein_attrs["loc"] = list(locations)
-        node = {
-            "id": protein_reference.getUri(),
-            "type": "protein",
-            "attrs": protein_attrs
-        }
-        return node
+
+        return (protein_reference.getUri(), "protein", protein_attrs)
 
     def region_to_node(self, region_feature_id):
         """."""
@@ -174,38 +125,37 @@ class BioPAXModel():
         if end is not None:
             region_attrs["end"] = end.getSequencePosition()
 
-        node = {
-            "id": region_id,
-            "type": "region",
-            "attrs": region_attrs
-        }
-        return node
+        return (region_id, "region", region_attrs)
 
-    def residue_to_node(self, protein_id, residue_id):
+    def residue_to_node(self, residue_id):
         """."""
         residue = self.model_.getByID(residue_id)
+        references = set(
+            [el.getEntityReference().getUri() for el in residue.getFeatureOf()])
+        if len(references) > 1:
+            warnings.warn("Residue (%s) references to more than one protein!" % (residue_id))
         residue_attrs = {}
         residue_attrs["loc"] = residue.getFeatureLocation().getSequencePosition()
-        node = {
-            "id": "%s@%s" % (protein_id, residue_attrs["loc"]),
-            "type": "residue",
-            "attrs": residue_attrs,
-        }
-        return node
+        return (residue_id, "residue", residue_attrs)
 
-    def flag_to_node(self, entitiy_id, flag_id):
+    def flag_to_node(self, flag_id):
         """."""
         flag = self.model_.getByID(flag_id)
+        references = set()
+        for el in flag.getFeatureOf():
+            if el.getModelInterface() == self.complex_class_:
+                references.add(el.getUri())
+            else:
+                references.add(el.getEntityReference().getUri())
+
+        if len(references) > 1:
+            warnings.warn(
+                "State flag (%s) references to more than one protein!" % (flag_id))
         flag_attrs = {}
         states = list(flag.getModificationType().getTerm())
         if len(states) == 1:
             flag_attrs[states[0]] = [0, 1]
-            node = {
-                "id": "%s_%s_flag" % (entitiy_id, flag_id),
-                "type": "flag",
-                "attrs": flag_attrs,
-            }
-            return node
+            return (flag_id, "state", flag_attrs)
         else:
             warnings.warn("Ambiguous state (%s)! Cannot convert to node" % states)
 
@@ -214,12 +164,8 @@ class BioPAXModel():
         family_reference = self.model_.getByID(family_reference_id)
         family_attrs = {}
         family_attrs["Name"] = list(family_reference.getName())
-        node = {
-            "id": family_reference.getUri(),
-            "type": "family",
-            "attrs": family_attrs
-        }
-        return node
+
+        return (family_reference.getUri(), "family", family_attrs)
 
     def small_molecule_to_node(self, small_molecule_id):
         """."""
@@ -250,25 +196,16 @@ class BioPAXModel():
                 locations.update(list(location.getTerm()))
         if len(locations) > 0:
             molecule_attrs["loc"] = list(locations)
-        node = {
-            "id": small_molecule_reference.getUri(),
-            "type": "small_molecule",
-            "attrs": molecule_attrs
-        }
-        return node
+        return (small_molecule_reference.getUri(), "small_molecule", molecule_attrs)
 
     def complex_to_node(self, complex_id):
+        """."""
         complex = self.model_.getByID(complex_id)
         complex_attrs = {}
         complex_attrs["Name"] = list(complex.getName())
         if complex.getCellularLocation() is not None:
             complex_attrs["loc"] = list(complex.getCellularLocation().getTerm())
-        node = {
-            "id": complex.getUri(),
-            "type": "complex",
-            "attrs": complex_attrs
-        }
-        return node
+        return (complex.getUri(), "complex", complex_attrs)
 
     def get_modifications(self, physical_entities):
         """."""
