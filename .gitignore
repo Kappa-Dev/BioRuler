@@ -1,0 +1,9 @@
+build/*
+dist/*
+BioRuler.egg-info/
+bioruler/library/__pycache__/
+venv/*
+bioruler/__pycache__/
+*.pyc
+JPype1.egg-info/
+paxtools-5.0.0-20160601.jar
