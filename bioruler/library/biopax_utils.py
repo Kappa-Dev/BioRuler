@@ -45,6 +45,15 @@ class BioPAXModel():
         self.dna_reference_class_ = java.lang.Class.forName(
             "org.biopax.paxtools.model.level3.DnaReference", True,
             java.lang.ClassLoader.getSystemClassLoader())
+        self.catalysis_class_ = java.lang.Class.forName(
+            "org.biopax.paxtools.model.level3.Catalysis", True,
+            java.lang.ClassLoader.getSystemClassLoader())
+        self.biochemical_reaction_class_ = java.lang.Class.forName(
+            "org.biopax.paxtools.model.level3.BiochemicalReaction", True,
+            java.lang.ClassLoader.getSystemClassLoader())
+        self.complex_assembly_class_ = java.lang.Class.forName(
+            "org.biopax.paxtools.model.level3.ComplexAssembly", True,
+            java.lang.ClassLoader.getSystemClassLoader())
         self.model_ = None
 
     def load(self, filename):
@@ -78,6 +87,29 @@ class BioPAXModel():
         for f in features:
             if f.getModelInterface() == self.fragment_feature_class_:
                 return True
+        return False
+
+    def is_flag(self, feature_id):
+        """."""
+        feature = self.model_.getByID(feature_id)
+        if feature.getModelInterface() == self.modification_feature_class_:
+            if feature.getFeatureLocation() is None:
+                return True
+        return False
+
+    def is_residue(self, feature_id):
+        """."""
+        feature = self.model_.getByID(feature_id)
+        if feature.getModelInterface() == self.modification_feature_class_:
+            if feature.getFeatureLocation() is not None:
+                return True
+        return False
+
+    def is_fragment_feature(self, feature_id):
+        """."""
+        feature = self.model_.getByID(feature_id)
+        if feature.getModelInterface() == self.fragment_feature_class_:
+            return True
         return False
 
     def protein_reference_to_node(self, protein_reference_id):
@@ -206,6 +238,24 @@ class BioPAXModel():
         if complex.getCellularLocation() is not None:
             complex_attrs["loc"] = list(complex.getCellularLocation().getTerm())
         return (complex.getUri(), "complex", complex_attrs)
+
+    def modification_to_node(self, reaction_id):
+        reaction = self.model_.getByID(reaction_id)
+        reaction_attrs = {}
+        for xref in reaction.getXref():
+            if xref.getDb() in reaction_attrs.keys():
+                reaction_attrs[xref.getDb()].append(xref.getId())
+            else:
+                reaction_attrs[xref.getDb()] = [xref.getId()]
+        if reaction.getCatalysisDirection() is not None:
+            reaction_attrs["direction"] = str(reaction.getCatalysisDirection())
+        reaction_attrs["evidence"] = set()
+        for evidence in reaction.getEvidence():
+            code = list(evidence.getEvidenceCode())[0]
+            xref = list(code.getXref())[0]
+            reaction_attrs["evidence"].add(xref.getId())
+        reaction_attrs["evidence"] = list(reaction_attrs["evidence"])
+        return (reaction_id, "MOD", reaction_attrs)
 
     def get_modifications(self, physical_entities):
         """."""

@@ -22,6 +22,14 @@ def generate_family_target(family_id):
     return ("%s_family_t" % family_id, "FAM_t")
 
 
+def generate_modification_source(reaction_id):
+    return ("%s_s" % reaction_id, "MOD_s")
+
+
+def generate_modification_target(reaction_id):
+    return ("%s_t" % reaction_id, "MOD_t")
+
+
 class BioPaxActionGraphImporter():
     """."""
 
@@ -176,7 +184,74 @@ class BioPaxActionGraphImporter():
         return (complexes_data, families)
 
     def collect_modifications(self, ignore_families=False):
-        pass
+        catalysis = self.data_.model_.getObjects(
+            self.data_.catalysis_class_)
+        modification_data = {}
+        for reaction in catalysis:
+            uri = reaction.getUri()
+            # Get reaction controlled
+            for controlled_reaction in reaction.getControlled():
+                # We are intereseted only in Biochemical Reactions
+                if controlled_reaction.getModelInterface() ==\
+                   self.data_.biochemical_reaction_class_:
+                    LHS = controlled_reaction.getLeft()
+                    RHS = controlled_reaction.getRight()
+                    # Check if it is a modification of the single
+                    # entity's state
+                    if len(LHS) == 1 and len(RHS) == 1:
+                        initial_entity = list(LHS)[0]
+                        resulting_entity = list(RHS)[0]
+
+                        elements_match = False
+                        if initial_entity.getModelInterface() ==\
+                           resulting_entity.getModelInterface():
+                            if initial_entity.getModelInterface() !=\
+                               self.data_.complex_class_:
+                                if initial_entity.getEntityReference().getUri() ==\
+                                   resulting_entity.getEntityReference().getUri():
+                                    elements_match = True
+                            else:
+                                if initial_entity.getUri() == resulting_entity.getUri():
+                                    elements_match = True
+                        # If both sides have the same entity
+                        if elements_match:
+                            modification_data[uri] =\
+                                {"sources": [], "targets": []}
+                            for controller in reaction.getController():
+                                if controller.getModelInterface() !=\
+                                   self.data_.complex_class_:
+                                    modification_data[uri]["sources"].append(
+                                        controller.getEntityReference().getUri())
+                                else:
+                                    modification_data[uri]["sources"].append(
+                                        controller.getUri())
+                            for f in resulting_entity.getFeature():
+                                if resulting_entity.getModelInterface() !=\
+                                   self.data_.complex_class_:
+                                    modification_data[uri]["targets"].append(
+                                        (resulting_entity.getEntityReference().getUri(),
+                                         f.getUri()))
+                                else:
+                                    modification_data[uri]["targets"].append(
+                                        (resulting_entity.getUri(),
+                                         f.getUri()))
+        return modification_data
+
+    # def collect_bindings(self, ignore_families=False):
+    #     binding_data = {}
+    #     catalysis = self.data_.model_.getObjects(
+    #         self.data_.catalysis_class_)
+    #     for reaction in catalysis:
+    #         uri = reaction.getUri()
+    #         for controlled_reaction in reaction.getControlled():
+    #             # We are intereseted only in Biochemical Reactions
+    #             if controlled_reaction.getModelInterface() ==\
+    #                self.data_.biochemical_reaction_class_ or\
+    #                controlled_reaction.getModelInterface() ==\
+    #                self.data_.complex_assembly_class_:
+    #                 LHS = controlled_reaction.getLeft()
+    #                 RHS = controlled_reaction.getRight()
+    #     return binding_data
 
     def generate_proteins(self, proteins, graph):
         nodes = []
@@ -344,6 +419,43 @@ class BioPaxActionGraphImporter():
                     edges.append(
                         (component, complex_node[0])
                     )
+
+        graph.add_nodes_from(nodes)
+        graph.add_edges_from(edges)
+
+    def generate_modification(self, modifications, graph):
+        nodes = []
+        edges = []
+
+        for reaction_id, data in modifications.items():
+            mod_node = self.data_.modification_to_node(reaction_id)
+            mod_s = generate_modification_source(reaction_id)
+            mod_t = generate_modification_target(reaction_id)
+
+            nodes.append(mod_node)
+            nodes.append(mod_s)
+            nodes.append(mod_t)
+
+            edges.append((mod_s[0], mod_node[0]))
+            edges.append((mod_t[0], mod_node[0]))
+
+            for source in data["sources"]:
+                if source in graph.nodes():
+                    edges.append((source, mod_s[0]))
+
+            for entity, flag in data["targets"]:
+                if self.data_.is_flag(flag):
+                    flag_node = self.data_.flag_to_node(flag, entity)
+                elif self.data_.is_residue(flag):
+                    residue_node = self.data_.residue_to_node(flag, entity)
+                    flag_node = self.data_.flag_to_node(flag, residue_node[0])
+                elif self.data_.is_fragment_feature(flag):
+                    continue
+                else:
+                    raise ValueError("Invalid modification %s!" % reaction_id)
+
+                if flag_node[0] in graph.nodes():
+                    edges.append((mod_t[0], flag_node[0]))
 
         graph.add_nodes_from(nodes)
         graph.add_edges_from(edges)
@@ -572,8 +684,10 @@ class BioPaxActionGraphImporter():
 
     def collect_actions(self, ignore_families=False):
         modifications = self.collect_modifications(ignore_families)
+        # bindings = self.collect_bindings(ignore_families)
         actions = {
-            "MOD": modifications
+            "MOD": modifications,
+            # "BND": bindings
         }
         return actions
 
@@ -591,12 +705,16 @@ class BioPaxActionGraphImporter():
 
         agents = self.collect_agents(ignore_families)
         actions = self.collect_actions(ignore_families)
-
         self.generate_proteins(agents["proteins"], graph)
         self.generate_families(agents["protein_families"], graph)
         self.generate_small_molecules(agents["small_molecules"], graph)
         self.generate_families(agents["small_molecule_families"], graph)
         self.generate_complexes(agents["complexes"], graph)
         self.generate_families(agents["complex_families"], graph)
-
+        print(len(graph.nodes()))
+        print(len(graph.edges()))
+        self.generate_modification(actions["MOD"], graph)
+        print(len(graph.nodes()))
+        print(len(graph.edges()))
+        graph.export("Graph.json")
         return graph
