@@ -127,7 +127,7 @@ class BioPAXModel():
 
         return (region_id, "region", region_attrs)
 
-    def residue_to_node(self, residue_id):
+    def residue_to_node(self, residue_id, protein_id=None):
         """."""
         residue = self.model_.getByID(residue_id)
         references = set(
@@ -136,9 +136,9 @@ class BioPAXModel():
             warnings.warn("Residue (%s) references to more than one protein!" % (residue_id))
         residue_attrs = {}
         residue_attrs["loc"] = residue.getFeatureLocation().getSequencePosition()
-        return (residue_id, "residue", residue_attrs)
+        return ("%s_residue_%s" % (protein_id, residue_id), "residue", residue_attrs)
 
-    def flag_to_node(self, flag_id):
+    def flag_to_node(self, flag_id, protein_id=None):
         """."""
         flag = self.model_.getByID(flag_id)
         references = set()
@@ -155,7 +155,7 @@ class BioPAXModel():
         states = list(flag.getModificationType().getTerm())
         if len(states) == 1:
             flag_attrs[states[0]] = [0, 1]
-            return (flag_id, "state", flag_attrs)
+            return ("%s_flag_%s" % (protein_id, flag_id), "state", flag_attrs)
         else:
             warnings.warn("Ambiguous state (%s)! Cannot convert to node" % states)
 
