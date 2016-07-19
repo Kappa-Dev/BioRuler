@@ -239,7 +239,7 @@ class BioPAXModel():
             complex_attrs["loc"] = list(complex.getCellularLocation().getTerm())
         return (complex.getUri(), "complex", complex_attrs)
 
-    def modification_to_node(self, reaction_id):
+    def modification_to_node(self, reaction_id, target):
         reaction = self.model_.getByID(reaction_id)
         reaction_attrs = {}
         for xref in reaction.getXref():
@@ -255,7 +255,7 @@ class BioPAXModel():
             xref = list(code.getXref())[0]
             reaction_attrs["evidence"].add(xref.getId())
         reaction_attrs["evidence"] = list(reaction_attrs["evidence"])
-        return (reaction_id, "MOD", reaction_attrs)
+        return ("%s_of_%s" % (reaction_id, target), "MOD", reaction_attrs)
 
     def get_modifications(self, physical_entities):
         """."""

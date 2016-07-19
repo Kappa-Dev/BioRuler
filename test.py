@@ -7,3 +7,4 @@ if __name__ == '__main__':
     graph = a.import_model("NCI-Nature-Curated-final-1.bp3.owl")
     print("Nodes: ", len(graph.nodes()))
     print("Edges: ", len(graph.edges()))
+    graph.export("Graph.json")

@@ -1,5 +1,6 @@
 """."""
 from regraph.library.data_structures import TypedDiGraph
+from regraph.library.utils import plot_graph
 
 from bioruler.library.metamodels import metamodel_AG
 from bioruler.library.biopax_utils import BioPAXModel
@@ -22,12 +23,12 @@ def generate_family_target(family_id):
     return ("%s_family_t" % family_id, "FAM_t")
 
 
-def generate_modification_source(reaction_id):
-    return ("%s_s" % reaction_id, "MOD_s")
+def generate_modification_source(reaction_id, target):
+    return ("%s_of_%s_s" % (reaction_id, target), "MOD_s")
 
 
-def generate_modification_target(reaction_id):
-    return ("%s_t" % reaction_id, "MOD_t")
+def generate_modification_target(reaction_id, target):
+    return ("%s_of_%s_t" % (reaction_id, target), "MOD_t")
 
 
 class BioPaxActionGraphImporter():
@@ -40,6 +41,7 @@ class BioPaxActionGraphImporter():
 
     def collect_proteins(self, ignore_families=False):
         """."""
+        print("Collecting proteins and families...")
         if self.data_ is not None:
             proteins = self.data_.model_.getObjects(self.data_.protein_reference_class_)
         else:
@@ -73,22 +75,21 @@ class BioPaxActionGraphImporter():
                 for region_id, physical_entities_id in distinct_regions.items():
                     regions[region_id] = self.data_.get_modifications(
                         physical_entities_id)
-                protein_data[uri]["regions"] = regions
-
                 # Collect residues and flags
                 physical_proteins_id =\
                     [el.getUri() for el in physical_proteins]
-                residues = set()
                 modifications = self.data_.get_modifications(physical_proteins_id)
                 # If residue is in the location of region, we add it to the region
+
                 for region_id in distinct_regions.keys():
                     for residue_id in modifications["residues"]:
                         if self.data_.residue_in_region(residue_id, region_id):
                             regions[region_id]["residues"].add(residue_id)
-                        else:
-                            residues.add(residue_id)
-                protein_data[uri]["residues"] = residues
+
+                protein_data[uri]["residues"] = modifications["residues"]
                 protein_data[uri]["flags"] = modifications["flags"]
+                protein_data[uri]["regions"] = regions
+
             # Families
             else:
                 if not ignore_families:
@@ -120,6 +121,7 @@ class BioPaxActionGraphImporter():
         return (protein_data, families)
 
     def collect_small_molecules(self, ignore_families=False):
+        print("Collecting small molecules and families...")
         small_molecules = self.data_.model_.getObjects(
             self.data_.small_molecule_reference_class_)
         small_molecules_data = set()
@@ -148,6 +150,7 @@ class BioPaxActionGraphImporter():
         return (small_molecules_data, families)
 
     def collect_complexes(self, ignore_families=False):
+        print("Collecting complexes and families...")
         complexes = self.data_.model_.getObjects(
             self.data_.complex_class_)
 
@@ -184,6 +187,7 @@ class BioPaxActionGraphImporter():
         return (complexes_data, families)
 
     def collect_modifications(self, ignore_families=False):
+        print("Collecting modifications...")
         catalysis = self.data_.model_.getObjects(
             self.data_.catalysis_class_)
         modification_data = {}
@@ -216,15 +220,19 @@ class BioPaxActionGraphImporter():
                         # If both sides have the same entity
                         if elements_match:
                             modification_data[uri] =\
-                                {"sources": [], "targets": []}
+                                {"sources": {}, "targets": []}
                             for controller in reaction.getController():
                                 if controller.getModelInterface() !=\
                                    self.data_.complex_class_:
-                                    modification_data[uri]["sources"].append(
-                                        controller.getEntityReference().getUri())
+                                    entity = controller.getEntityReference().getUri()
                                 else:
-                                    modification_data[uri]["sources"].append(
-                                        controller.getUri())
+                                    entity = controller.getUri()
+                                modification_data[uri]["sources"][entity] = []
+                                for f in controller.getFeature():
+                                    modification_data[uri]["sources"][entity].append(
+                                        f.getUri()
+                                    )
+
                             for f in resulting_entity.getFeature():
                                 if resulting_entity.getModelInterface() !=\
                                    self.data_.complex_class_:
@@ -254,12 +262,14 @@ class BioPaxActionGraphImporter():
     #     return binding_data
 
     def generate_proteins(self, proteins, graph):
+        print("Generating nodes for proteins...")
         nodes = []
         edges = []
 
         for protein_id, data in proteins.items():
             # Create nodes representing proteins
             protein_node = self.data_.protein_reference_to_node(protein_id)
+            # print(protein_node)
             if protein_node is not None:
                 nodes.append(protein_node)
                 for flag in data["flags"]:
@@ -272,6 +282,7 @@ class BioPaxActionGraphImporter():
                             )
                 for residue in data["residues"]:
                     residue_node = self.data_.residue_to_node(residue, protein_id)
+                    # print(residue_node)
                     if residue_node is not None:
                         nodes.append(residue_node)
 
@@ -279,6 +290,7 @@ class BioPaxActionGraphImporter():
                             (residue_node[0], protein_id)
                         )
                         flag_node = self.data_.flag_to_node(residue, residue_node[0])
+                        # print(flag_node)
                         if flag_node is not None:
                             nodes.append(flag_node)
                             edges.append(
@@ -320,6 +332,7 @@ class BioPaxActionGraphImporter():
         graph.add_edges_from(edges)
 
     def generate_families(self, families, graph):
+        print("Generating nodes for families...")
         nodes = []
         edges = []
         for family_id, data in families.items():
@@ -374,6 +387,7 @@ class BioPaxActionGraphImporter():
         graph.add_edges_from(edges)
 
     def generate_small_molecules(self, small_molecules, graph):
+        print("Generating nodes for small molecules...")
         nodes = []
         for molecule_id in small_molecules:
             molecule_node = self.data_.small_molecule_to_node(molecule_id)
@@ -382,6 +396,7 @@ class BioPaxActionGraphImporter():
         graph.add_nodes_from(nodes)
 
     def generate_complexes(self, complexes, graph):
+        print("Generating nodes for complexes...")
         nodes = []
         edges = []
 
@@ -424,247 +439,135 @@ class BioPaxActionGraphImporter():
         graph.add_edges_from(edges)
 
     def generate_modification(self, modifications, graph):
+        print("Generating nodes for modifications...")
         nodes = []
         edges = []
 
+        nuggets = []
+
         for reaction_id, data in modifications.items():
-            mod_node = self.data_.modification_to_node(reaction_id)
-            mod_s = generate_modification_source(reaction_id)
-            mod_t = generate_modification_target(reaction_id)
+            nugget = TypedDiGraph()
 
-            nodes.append(mod_node)
-            nodes.append(mod_s)
-            nodes.append(mod_t)
-
-            edges.append((mod_s[0], mod_node[0]))
-            edges.append((mod_t[0], mod_node[0]))
-
-            for source in data["sources"]:
-                if source in graph.nodes():
-                    edges.append((source, mod_s[0]))
+            # add source of modification the nugget
+            # in addition get features of the sources
+            # (reaction preconditions)
+            for entity, features in data["sources"].items():
+                if entity not in nugget.nodes():
+                    nugget.add_node(
+                        entity,
+                        graph.node[entity].type_,
+                        graph.node[entity].attrs_)
+                for feature in features:
+                    if self.data_.is_flag(feature):
+                        flag_node = self.data_.flag_to_node(feature, entity)
+                        modification = [k for k in flag_node[2].keys()][0]
+                        nugget.add_node(
+                            flag_node[0],
+                            flag_node[1],
+                            flag_node[2]
+                        )
+                        nugget.node[flag_node[0]].attrs_[modification] = 1
+                        nugget.add_edge(flag_node[0], entity)
+                    elif self.data_.is_residue(feature):
+                        residue_node = self.data_.residue_to_node(feature, entity)
+                        nugget.add_node(
+                            residue_node[0],
+                            residue_node[1],
+                            residue_node[2]
+                        )
+                        nugget.add_edge(residue_node[0], entity)
+                        flag_node = self.data_.flag_to_node(feature, residue_node[0])
+                        modification = [k for k in flag_node[2].keys()][0]
+                        nugget.add_node(
+                            flag_node[0],
+                            flag_node[1],
+                            flag_node[2]
+                        )
+                        nugget.node[flag_node[0]].attrs_[modification] = 1
+                        nugget.add_edge(flag_node[0], residue_node[0])
+                    elif self.data_.is_fragment_feature(feature):
+                        continue
+                    else:
+                        raise ValueError("Invalid modification %s!" % reaction_id)
 
             for entity, flag in data["targets"]:
+                # add modification action to the
+                # action graph
+                target = str(entity) + "_state_" + str(flag)
+                mod_node = self.data_.modification_to_node(reaction_id, target)
+                mod_s = generate_modification_source(reaction_id, target)
+                mod_t = generate_modification_target(reaction_id, target)
+
+                nodes.append(mod_node)
+                nodes.append(mod_s)
+                nodes.append(mod_t)
+
+                edges.append((mod_s[0], mod_node[0]))
+                edges.append((mod_t[0], mod_node[0]))
+
+                # add modification action to the nugget
+                nugget.add_nodes_from([mod_node, mod_s, mod_t])
+
+                nugget.add_edges_from([
+                    (mod_s[0], mod_node[0]),
+                    (mod_t[0], mod_node[0])
+                ])
+
+                # connect sources of modification with action
+                # in the action graph
+                for source in data["sources"].keys():
+                    if source in graph.nodes():
+                        edges.append((source, mod_s[0]))
+                        nugget.add_edge(source, mod_s[0])
+                    else:
+                        print(source)
+
                 if self.data_.is_flag(flag):
                     flag_node = self.data_.flag_to_node(flag, entity)
+                    if entity not in nugget.nodes():
+                        protein_node = self.data_.protein_reference_to_node(entity)
+                        nugget.add_node(protein_node[0], protein_node[1], protein_node[2])
+                    if flag_node[0] in graph.nodes():
+                        edges.append((mod_t[0], flag_node[0]))
+                        modification = [k for k in flag_node[2].keys()][0]
+                        nugget.add_node(
+                            flag_node[0],
+                            graph.node[flag_node[0]].type_,
+                            graph.node[flag_node[0]].attrs_)
+                        nugget.node[flag_node[0]].attrs_[modification] = 1
+                        nugget.node[mod_node[0]].attrs_[modification] = 1
+                        nugget.add_edge(flag_node[0], entity)
+                        nugget.add_edge(
+                            mod_t[0], flag_node[0])
                 elif self.data_.is_residue(flag):
                     residue_node = self.data_.residue_to_node(flag, entity)
+                    nugget.add_node(residue_node[0], residue_node[1], residue_node[2])
+                    if entity not in nugget.nodes():
+                        protein_node = self.data_.protein_reference_to_node(entity)
+                        nugget.add_node(protein_node[0], protein_node[1], protein_node[2])
+                    nugget.add_edge(residue_node[0], entity)
                     flag_node = self.data_.flag_to_node(flag, residue_node[0])
+                    if flag_node[0] in graph.nodes():
+                        edges.append((mod_t[0], flag_node[0]))
+                        modification = [k for k in flag_node[2].keys()][0]
+                        nugget.add_node(
+                            flag_node[0],
+                            graph.node[flag_node[0]].type_,
+                            graph.node[flag_node[0]].attrs_)
+                        nugget.node[flag_node[0]].attrs_[modification] = 1
+                        nugget.node[mod_node[0]].attrs_[modification] = 1
+                        nugget.add_edge(flag_node[0], residue_node[0])
+                    nugget.add_edge(
+                        mod_t[0], flag_node[0])
+
                 elif self.data_.is_fragment_feature(flag):
                     continue
                 else:
                     raise ValueError("Invalid modification %s!" % reaction_id)
-
-                if flag_node[0] in graph.nodes():
-                    edges.append((mod_t[0], flag_node[0]))
-
+            nuggets.append(nugget)
         graph.add_nodes_from(nodes)
         graph.add_edges_from(edges)
-
-    # def complex(self, graph):
-    #     print("GENERATING COMPLEXES...")
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         complexes = self.data_.model_.getObjects(self.data_.complex_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     for complex in list(complexes):
-    #         uri = complex.getUri()
-    #         if not self.data_.is_complex_family(uri):
-    #             complex_node = self.data_.complex_to_node(uri)
-    #             if complex_node is not None:
-    #                 nodes.append(complex_node)
-    #     graph.add_nodes_from(nodes)
-
-    # def protein(self, graph):
-    #     print("GENERATING PROTEINS...")
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         proteins = self.data_.model_.getObjects(self.data_.protein_reference_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     # Iterate through protein references
-    #     for protein in list(proteins):
-    #         uri = protein.getUri()
-    #         if not self.data_.is_protein_family(uri):
-    #             protein_node = self.data_.protein_reference_to_node(uri)
-    #             if protein_node is not None:
-    #                 nodes.append(protein_node)
-    #     graph.add_nodes_from(nodes)
-
-    # def region(self, graph):
-    #     print("GENERATING REGIONS...")
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         proteins = self.data_.model_.getObjects(self.data_.protein_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     region_refrences = set()
-    #     for protein in proteins:
-    #         if self.data_.is_fragment(protein.getUri()):
-    #             features = protein.getFeature()
-    #             for f in features:
-    #                 if f.getModelInterface() == self.data_.fragment_feature_class_:
-    #                     reference_proteins = set(
-    #                         [el.getEntityReference().getUri() for el in f.getFeatureOf()]
-    #                     )
-    #                     if len(reference_proteins) > 1:
-    #                         raise ValueError("Region references to more than one protein!")
-    #                     region_refrences.add(f.getUri())
-
-    #     for region in region_refrences:
-    #         region_node = self.data_.region_to_node(region)
-    #         if region_node is not None:
-    #             nodes.append(region_node)
-
-    #     graph.add_nodes_from(nodes)
-
-    # def residue(self, graph):
-    #     print("GENRATING RESIDUE...")
-    #     nodes = []
-    #     # in our metamodel residue can belong to the
-    #     # - protein
-    #     # - complex
-
-    #     if self.data_ is not None:
-    #         proteins = self.data_.model_.getObjects(self.data_.protein_class_)
-    #         complexes = self.data_.model_.getObjects(self.data_.complex_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     residues = set()
-    #     for protein in proteins:
-    #         for f in protein.feature:
-    #             if f.getModelInterface() == self.data_.modification_feature_class_:
-    #                 if f.getFeatureLocation() is not None:
-    #                     residues.add(f.getUri())
-    #     for complex in complexes:
-    #         for f in complex.feature:
-    #             if f.getModelInterface() == self.data_.modification_feature_class_:
-    #                 if f.getFeatureLocation() is not None:
-    #                     residues.add(f.getUri())
-    #     for residue in residues:
-    #         residue_node = self.data_.residue_to_node(residue)
-    #         if residue_node is not None:
-    #             nodes.append(residue_node)
-    #     graph.add_nodes_from(nodes)
-
-    # def state(self, graph):
-    #     print("GENERATING SMALL MOLECULES...")
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         proteins = self.data_.model_.getObjects(self.data_.protein_class_)
-    #         complexes = self.data_.model_.getObjects(self.data_.complex_class_)
-    #         small_molecules = self.data_.model_.getObjects(self.data_.small_molecule_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     flags = set()
-    #     for protein in proteins:
-    #         for f in protein.feature:
-    #             if f.getModelInterface() == self.data_.modification_feature_class_:
-    #                 if f.getFeatureLocation() is None:
-    #                     flags.add(f.getUri())
-    #     for complex in complexes:
-    #         for f in complex.feature:
-    #             if f.getModelInterface() == self.data_.modification_feature_class_:
-    #                 if f.getFeatureLocation() is None:
-    #                     flags.add(f.getUri())
-    #     for molecule in small_molecules:
-    #         for f in molecule.feature:
-    #             if f.getModelInterface() == self.data_.modification_feature_class_:
-    #                 if f.getFeatureLocation() is None:
-    #                     flags.add(f.getUri())
-    #     for flag in flags:
-    #         flag_node = self.data_.flag_to_node(flag)
-    #         if flag_node is not None:
-    #             nodes.append(flag_node)
-    #     graph.add_nodes_from(nodes)
-
-    # def small_molecule(self, graph):
-    #     print("GENERATING flags...")
-    #     # protein flag
-    #     # complex flag
-    #     # small molecule flag
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         small_molecules = self.data_.model_.getObjects(self.data_.small_molecule_reference_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-
-    #     # Iterate through protein references
-    #     for molecule in list(small_molecules):
-    #         uri = molecule.getUri()
-    #         if not self.data_.is_protein_family(uri):
-    #             molecule_node = self.data_.small_molecule_to_node(uri)
-    #             if molecule_node is not None:
-    #                 nodes.append(molecule_node)
-    #     graph.add_nodes_from(nodes)
-
-    # def family(self, graph):
-    #     print("GENERATING Family...")
-    #     nodes = []
-
-    #     if self.data_ is not None:
-    #         proteins = self.data_.model_.getObjects(self.data_.protein_reference_class_)
-    #         complexes = self.data_.model_.getObjects(self.data_.complex_class_)
-    #         small_molecules = self.data_.model_.getObjects(self.data_.small_molecule_reference_class_)
-    #     else:
-    #         raise ValueError("BioPAX model is not loaded!")
-    #     for protein in proteins:
-    #         if self.data_.is_protein_family(protein.getUri()):
-    #             family_node = self.data_.family_reference_to_node(protein.getUri())
-    #             if family_node is not None:
-    #                 nodes.append(family_node)
-    #     for complex in complexes:
-    #         if self.data_.is_complex_family(complex.getUri()):
-    #             family_node = self.data_.family_reference_to_node(complex.getUri())
-    #             if family_node is not None:
-    #                 nodes.append(family_node)
-    #     for molecule in small_molecules:
-    #         if self.data_.is_protein_family(molecule.getUri()):
-    #             family_node = self.data_.family_reference_to_node(molecule.getUri())
-    #             if family_node is not None:
-    #                 nodes.append(family_node)
-
-    #     graph.add_nodes_from(nodes)
-
-    # def BND(self, graph):
-    #     print("GENRATING BND")
-
-    # def BND_s(self, graph):
-    #     print("GENRATING BND_s")
-
-    # def BRK(self, graph):
-    #     print("GENRATING BRK")
-
-    # def BRK_t(self, graph):
-    #     print("GENRATING BRK_t")
-
-    # def MOD(self, graph):
-    #     print("GENRATING MOD")
-
-    # def MOD_s(self, graph):
-    #     print("GENRATING MOD_s")
-
-    # def MOD_t(self, graph):
-    #     print("GENRATING MOD_t")
-
-    # def FAM(self, graph):
-    #     print("GENRATING FAM")
-
-    # def FAM_s(self, graph):
-    #     print("GENRATING FAM_s")
-
-    # def FAM_t(self, graph):
-    #     print("GENRATING FAM_t")
+        return nuggets
 
     def collect_agents(self, ignore_families=False):
         (proteins, protein_families) = self.collect_proteins(ignore_families)
@@ -694,6 +597,7 @@ class BioPaxActionGraphImporter():
     def import_model(self, filename, ignore_families=False):
         self.data_.load(filename)
         graph = TypedDiGraph(self.metamodel_)
+
         # for node_type in self.metamodel_.nodes():
         #     if self.metamodel_.node[node_type].type_ != "action":
         #         getattr(self, node_type)(graph)
@@ -711,10 +615,8 @@ class BioPaxActionGraphImporter():
         self.generate_families(agents["small_molecule_families"], graph)
         self.generate_complexes(agents["complexes"], graph)
         self.generate_families(agents["complex_families"], graph)
-        print(len(graph.nodes()))
-        print(len(graph.edges()))
-        self.generate_modification(actions["MOD"], graph)
-        print(len(graph.nodes()))
-        print(len(graph.edges()))
-        graph.export("Graph.json")
+        modification_nuggets = self.generate_modification(actions["MOD"], graph)
+        plot_graph(modification_nuggets[0], filename="nugget1.png")
+        plot_graph(modification_nuggets[10], filename="nugget2.png")
+        plot_graph(modification_nuggets[100], filename="nugget3.png")
         return graph
