@@ -15,7 +15,7 @@ import json
 from copy import deepcopy
 
 
-class KappaTranslator(object):
+class KappaExporter(object):
 
     meta = metamodel_kappa
 
@@ -32,18 +32,18 @@ class KappaTranslator(object):
             )
         else:
             if hom is None:
-                hom = TypedHomomorphism.canonic(G.metamodel_, KappaTranslator.meta)
+                hom = TypedHomomorphism.canonic(G.metamodel_, KappaExporter.meta)
             else:
                 if hom.source_ != G.metamodel_:
                     raise ValueError(
                         "Invalid homomorphism, source is not the action graph "+\
                         "of G"
                     )
-                elif hom.target_ != KappaTranslator.meta:
+                elif hom.target_ != KappaExporter.meta:
                     raise ValueError(
                         "Invalid homomorphism, target is not our metamodel"
                     )
-                elif set(hom.mapping_.values()) > set(KappaTranslator.meta.nodes()):
+                elif set(hom.mapping_.values()) > set(KappaExporter.meta.nodes()):
                     raise ValueError(
                         "Invalid homomorphism, mapping is not consistent"
                     )
@@ -288,18 +288,18 @@ class KappaTranslator(object):
             )
         else:
             if hom is None:
-                hom = TypedHomomorphism.canonic(graph.metamodel_, KappaTranslator.meta)
+                hom = TypedHomomorphism.canonic(graph.metamodel_, KappaExporter.meta)
             else:
                 if hom.source_ != graph.metamodel_:
                     raise ValueError(
                         "Invalid homomorphism, source is not the action graph "+\
                         "of G"
                     )
-                elif hom.target_ != KappaTranslator.meta:
+                elif hom.target_ != KappaExporter.meta:
                     raise ValueError(
                         "Invalid homomorphism, target is not our metamodel"
                     )
-                elif set(hom.mapping_.values()) > set(KappaTranslator.meta.nodes()):
+                elif set(hom.mapping_.values()) > set(KappaExporter.meta.nodes()):
                     raise ValueError(
                         "Invalid homomorphism, mapping is not consistent"
                     )
@@ -483,25 +483,25 @@ class KappaTranslator(object):
             )
         else:
             if hom is None:
-                hom = TypedHomomorphism.canonic(G.metamodel_, KappaTranslator.meta)
+                hom = TypedHomomorphism.canonic(G.metamodel_, KappaExporter.meta)
             else:
                 if hom.source_ != G.metamodel_:
                     raise ValueError(
                         "Invalid homomorphism, source is not the action graph "+\
                         "of G"
                     )
-                elif hom.target_ != KappaTranslator.meta:
+                elif hom.target_ != KappaExporter.meta:
                     raise ValueError(
                         "Invalid homomorphism, target is not our metamodel"
                     )
-                elif set(hom.mapping_.values()) > set(KappaTranslator.meta.nodes()):
+                elif set(hom.mapping_.values()) > set(KappaExporter.meta.nodes()):
                     raise ValueError(
                         "Invalid homomorphism, mapping is not consistent"
                     )
 
 
-        KappaTranslator.check_nugget(G, hom)
-        G = KappaTranslator.normalize_nugget(G, hom)
+        KappaExporter.check_nugget(G, hom)
+        G = KappaExporter.normalize_nugget(G, hom)
 
         rules=[({}, {})]
 
@@ -822,28 +822,6 @@ class KappaTranslator(object):
                                         ("State %s of site %s of agent %s doesn't have" %
                                         (e_site[0], s, a))+" 'val' attribute"
                                     )
-        # for a in agents:
-        #     is_syn = False
-        #     for t_sd, a in G.in_edges(a):
-        #         if hom.mapping_[G.hom.mapping_[t_sd]] == 't_SD':
-        #             is_syn = True
-        #     if not is_syn:
-        #         for site, a in G.in_edges(a):
-        #             if hom.mapping_[G.hom.mapping_[site]] == 'site':
-        #                 for state, site in G.in_edges(site):
-        #                     if hom.mapping_[G.hom.mapping_[state]] == 'state':
-        #                         if G.node[state].attrs_ is not None and\
-        #                            'val' in G.node[state].attrs_.keys() and\
-        #                            G.node[state].attrs_['val'] != set():
-        #                             for LHS, RHS in rules:
-        #                                 state_val = deepcopy(G.node[state].attrs_['val']).pop()
-        #                                 if a not in LHS.keys():
-        #                                     LHS[a] = {}
-        #                                     if site not in LHS[a].keys():
-        #                                         LHS[a][site] = [state_val, None]
-        #                                 else:
-        #                                     LHS[a][site] = [state_val, None]
-
 
 
         # making rules
@@ -1248,18 +1226,18 @@ class KappaTranslator(object):
             )
         else:
             if hom is None:
-                hom = TypedHomomorphism.canonic(G.metamodel_, KappaTranslator.meta)
+                hom = TypedHomomorphism.canonic(G.metamodel_, KappaExporter.meta)
             else:
                 if hom.source_ != G.metamodel_:
                     raise ValueError(
                         "Invalid homomorphism, source is not the action graph "+\
                         "of G"
                     )
-                elif hom.target_ != KappaTranslator.meta:
+                elif hom.target_ != KappaExporter.meta:
                     raise ValueError(
                         "Invalid homomorphism, target is not our metamodel"
                     )
-                elif set(hom.mapping_.values()) > set(KappaTranslator.meta.nodes()):
+                elif set(hom.mapping_.values()) > set(KappaExporter.meta.nodes()):
                     raise ValueError(
                         "Invalid homomorphism, mapping is not consistent"
                     )
@@ -1273,22 +1251,22 @@ class KappaTranslator(object):
         rules=[]
         for n_nugget in con_comp:
             nugget = G.subgraph(n_nugget)
-            agent_sites, rule, context = KappaTranslator.compile(nugget, hom, agent_sites)
+            agent_sites, rule, context = KappaExporter.compile(nugget, hom, agent_sites)
             rules.append((rule, context))
-            agent_decl = KappaTranslator.generate_agent_decl(agent_sites)
+            agent_decl = KappaExporter.generate_agent_decl(agent_sites)
         rules_decl = ''
         count = 1
         for rule, context in rules:
-            rules_decl += KappaTranslator.generate_rules_decl(G, rule, context, count)
+            rules_decl += KappaExporter.generate_rules_decl(G, rule, context, count)
             count += 1
 
         return agent_decl, rules_decl
 
     @staticmethod
     def compile_nugget(nug, hom=None):
-        agent_sites, rule, context = KappaTranslator.compile(nug, hom)
-        agent_decl = KappaTranslator.generate_agent_decl(agent_sites)
-        rules_decl = KappaTranslator.generate_rules_decl(nug, rule, context, 1)
+        agent_sites, rule, context = KappaExporter.compile(nug, hom)
+        agent_decl = KappaExporter.generate_agent_decl(agent_sites)
+        rules_decl = KappaExporter.generate_rules_decl(nug, rule, context, 1)
 
         return agent_decl, rules_decl
 
@@ -1299,16 +1277,23 @@ class KappaTranslator(object):
         count=1
 
         for nug in nug_list:
-            agent_sites, rule, context = KappaTranslator.compile(nug, None, agent_sites)
-            rules += KappaTranslator.generate_rules_decl(nug, rule, context, count)
+            agent_sites, rule, context = KappaExporter.compile(nug, None, agent_sites)
+            rules += KappaExporter.generate_rules_decl(nug, rule, context, count)
             count+=1
 
 
-        agent_decl = KappaTranslator.generate_agent_decl(agent_sites)
+        agent_decl = KappaExporter.generate_agent_decl(agent_sites)
 
         return agent_decl, rules
 
         return agent_decl, rules_decl
+
+
+class KappaImporter(object):
+
+    def __init__(self):
+        pass
+
     @staticmethod
     def uncompile_agents(agents):
         action_graph = TypedDiGraph()
@@ -1723,7 +1708,7 @@ class KappaTranslator(object):
     def uncompile_rules(rules, action_graph):
         graph = TypedDiGraph()
         for i in range(len(rules)):
-            KappaTranslator.uncompile_rule(rules[i], graph, action_graph, str(i))
+            KappaImporter.uncompile_rule(rules[i], graph, action_graph, str(i))
         return graph
 
     @staticmethod
@@ -1743,11 +1728,11 @@ class KappaTranslator(object):
             f_r = open(out+'rules.json', 'r+')
 
             agents_ = json.loads(f_a.read())
-            action_graph = KappaTranslator.uncompile_agents(agents_)
+            action_graph = KappaImporter.uncompile_agents(agents_)
             rules = json.loads(f_r.read())
             for rule in rules:
                 nugget = TypedDiGraph()
-                KappaTranslator.uncompile_rule(rule, nugget, action_graph)
+                KappaImporter.uncompile_rule(rule, nugget, action_graph)
 
                 nugget.metamodel_ = action_graph
                 nugget.hom = TypedHomomorphism.canonic(nugget, action_graph)
@@ -1771,8 +1756,8 @@ class KappaTranslator(object):
             agents = json.loads(f_a.read())
             rules = json.loads(f_r.read())
 
-            action_graph = KappaTranslator.uncompile_agents(agents)
-            graph = KappaTranslator.uncompile_rules(rules, action_graph)
+            action_graph = KappaImporter.uncompile_agents(agents)
+            graph = KappaImporter.uncompile_rules(rules, action_graph)
 
             graph.metamodel_ = action_graph
             graph.hom = TypedHomomorphism.canonic(graph, action_graph)

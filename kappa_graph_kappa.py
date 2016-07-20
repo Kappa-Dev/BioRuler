@@ -1,4 +1,4 @@
-from bioruler.library.kappa_translator import KappaTranslator
+from bioruler.library.kappa_translator import KappaExporter, KappaImporter
 
 import argparse
 parser = argparse.ArgumentParser(description='Test translator')
@@ -10,11 +10,9 @@ args = parser.parse_args()
 
 in_file = open('test.ka', 'r')
 
-imported = KappaTranslator.uncompile(["test.ka"], parser=args.pars)
+imported = KappaImporter.uncompile(["test.ka"], parser=args.pars)
 
-print(imported[-1])
-
-compiled = KappaTranslator.compile_nugget_list(imported)
+compiled = KappaExporter.compile_nugget_list(imported)
 
 if args.p:
     f = open('res.txt', 'a+')

@@ -122,7 +122,7 @@ metamodel_kappa.add_nodes_from([
 ])
 
 metamodel_kappa.add_edges_from([
-    ('site', 'agent')
+    ('site', 'agent'),
     ('state', 'site'),
     ('site', 's_BND'),
     ('s_BND', 'BND'),
