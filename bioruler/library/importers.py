@@ -200,6 +200,9 @@ class BioPaxActionGraphImporter():
                    self.data_.biochemical_reaction_class_:
                     LHS = controlled_reaction.getLeft()
                     RHS = controlled_reaction.getRight()
+
+                    # Extract trivial modifications
+
                     # Check if it is a modification of the single
                     # entity's state
                     if len(LHS) == 1 and len(RHS) == 1:
@@ -243,6 +246,43 @@ class BioPaxActionGraphImporter():
                                     modification_data[uri]["targets"].append(
                                         (resulting_entity.getUri(),
                                          f.getUri()))
+                    # Extract phenomenological modifications
+                    lhs_complexes = []
+                    rhs_complexes = []
+                    for el in LHS:
+                        if el.getModelInterface() ==\
+                           self.data_.complex_class_:
+                            lhs_complexes.append(el)
+                    for el in RHS:
+                        if el.getModelInterface() ==\
+                           self.data_.complex_class_:
+                            rhs_complexes.append(el)
+                    if len(lhs_complexes) == 1 and len(rhs_complexes) == 1:
+                        if lhs_complexes[0].getUri() != rhs_complexes[0].getUri():
+                            lhs_components = set([c.getUri() for c in lhs_complexes[0].getComponent()])
+                            rhs_components = set([c.getUri() for c in rhs_complexes[0].getComponent()])
+                            if lhs_components != rhs_components:
+                                print("LHS ", lhs_complexes[0].getName())
+                                for f in lhs_complexes[0].getFeature():
+                                    print("\t", f)
+
+                                print("RHS ", rhs_complexes[0].getName())
+                                for f in rhs_complexes[0].getFeature():
+                                    print("\t", f)
+                                intersection = lhs_components.intersection(rhs_components)
+                                difference = rhs_components.difference(lhs_components)
+                                if len(intersection) > 0:
+                                    print("Intersection:")
+                                    for el in intersection:
+                                        entity = self.data_.model_.getByID(el)
+                                        print("\t", entity.getName(), entity.getModelInterface())
+                                if len(difference) > 0:
+                                    print("Difference:")
+                                    for el in difference:
+                                        entity = self.data_.model_.getByID(el)
+                                        print("\t", entity.getName(), entity.getModelInterface())
+
+
         return modification_data
 
     # def collect_bindings(self, ignore_families=False):
@@ -616,7 +656,22 @@ class BioPaxActionGraphImporter():
         self.generate_complexes(agents["complexes"], graph)
         self.generate_families(agents["complex_families"], graph)
         modification_nuggets = self.generate_modification(actions["MOD"], graph)
+
         plot_graph(modification_nuggets[0], filename="nugget1.png")
+        print("NUGGET 1\n")
+        for n in modification_nuggets[0]:
+            print(modification_nuggets[0].node[n])
+        print()
+
         plot_graph(modification_nuggets[10], filename="nugget2.png")
+        print("NUGGET 2\n")
+        for n in modification_nuggets[10]:
+            print(modification_nuggets[10].node[n])
+        print()
+
         plot_graph(modification_nuggets[100], filename="nugget3.png")
+        print("NUGGET 3\n")
+        for n in modification_nuggets[100]:
+            print(modification_nuggets[100].node[n])
+        print()
         return graph

@@ -1,28 +1,24 @@
 from regraph.library.data_structures import TypedDiGraph
 
 
-metametamodel_AG = TypedDiGraph()
+base_metamodel = TypedDiGraph()
 
-metametamodel_AG.add_nodes_from(
+base_metamodel.add_nodes_from(
     [
         ("agent", "node"),
-        ("action", "node"),
-        ("attribute_node", "node")
+        ("action", "node")
     ]
 )
-metametamodel_AG.add_edges_from(
+base_metamodel.add_edges_from(
     [
         ("agent", "agent"),
         ("agent", "action"),
         ("action", "action"),
         ("action", "agent"),
-        ("action", "attribute_node"),
-        ("attribute_node", "attribute_node"),
-        ("attribute_node", "agent"),
     ]
 )
 
-metamodel_AG = TypedDiGraph(metametamodel_AG)
+metamodel_AG = TypedDiGraph(base_metamodel)
 
 metamodel_AG.add_nodes_from(
     [
@@ -32,7 +28,7 @@ metamodel_AG.add_nodes_from(
         ("family", "agent"),
         ("complex", "agent"),
         ("small_molecule", "agent"),
-        ("state", "attribute_node"),
+        ("state", "agent"),
 
         ("FAM", "action"),
         ("FAM_s", "action"),
@@ -104,3 +100,41 @@ metamodel_AG.add_edges_from(
         ("FAM_t", "family"),
     ]
 )
+
+metamodel_kappa = TypedDiGraph(base_metamodel)
+
+metamodel_kappa.add_nodes_from([
+    ('agent', 'agent'),
+    ('site', 'agent'),
+    ('state', 'agent'),
+    ('BND', 'action'),
+    ('BRK', 'action'),
+    ('MOD', 'action'),
+    ('is_BND', 'action'),
+    ('s_BND', 'action'),
+    ('t_BRK', 'action'),
+    ('t_MOD', 'action'),
+    ('SYN/DEG', 'action'),
+    ('s_SD', 'action'),
+    ('t_SD', 'action'),
+    ('is_FREE', 'action'),
+    ('t_FREE', 'action'),
+])
+
+metamodel_kappa.add_edges_from([
+    ('site', 'agent')
+    ('state', 'site'),
+    ('site', 's_BND'),
+    ('s_BND', 'BND'),
+    ('s_BND', 'is_BND'),
+    ('t_BRK', 'BRK'),
+    ('t_BRK', 'site'),
+    ('t_MOD', 'MOD'),
+    ('t_MOD', 'state'),
+    ('s_SD', 'SYN/DEG'),
+    ('t_SD', 'SYN/DEG'),
+    ('agent', 's_SD'),
+    ('t_SD', 'agent'),
+    ('t_FREE', 'is_FREE'),
+    ('t_FREE', 'site'),
+])

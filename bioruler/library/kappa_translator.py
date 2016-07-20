@@ -1,3 +1,5 @@
+"""."""
+from bioruler.library.metamodels import metamodel_kappa
 
 from regraph.library.data_structures import (TypedDiGraph,
                                              Homomorphism,
@@ -9,54 +11,19 @@ import networkx as nx
 import subprocess
 import os
 import json
-import re
-import tempfile
-import time
 
 from copy import deepcopy
 
+
 class KappaTranslator(object):
 
-    meta = TypedDiGraph()
-
-    meta.add_node('agent', None)
-    meta.add_node('site', None)
-    meta.add_node('state', None)
-    meta.add_node('BND', None)
-    meta.add_node('BRK', None)
-    meta.add_node('MOD', None)
-    meta.add_node('is_BND', None)
-    meta.add_node('s_BND', None)
-    meta.add_node('t_BRK', None)
-    meta.add_node('t_MOD', None)
-    meta.add_node('SYN/DEG', None)
-    meta.add_node('s_SD', None)
-    meta.add_node('t_SD', None)
-    meta.add_node('is_FREE', None)
-    meta.add_node('t_FREE', None)
-
-    meta.add_edge('site', 'agent')
-    meta.add_edge('state', 'site')
-    meta.add_edge('site', 's_BND')
-    meta.add_edge('s_BND', 'BND')
-    meta.add_edge('s_BND', 'is_BND')
-    meta.add_edge('t_BRK', 'BRK')
-    meta.add_edge('t_BRK', 'site')
-    meta.add_edge('t_MOD', 'MOD')
-    meta.add_edge('t_MOD', 'state')
-    meta.add_edge('s_SD', 'SYN/DEG')
-    meta.add_edge('t_SD', 'SYN/DEG')
-    meta.add_edge('agent', 's_SD')
-    meta.add_edge('t_SD', 'agent')
-    meta.add_edge('t_FREE', 'is_FREE')
-    meta.add_edge('t_FREE', 'site')
+    meta = metamodel_kappa
 
     def __init__(self):
         pass
 
     @staticmethod
     def check_nugget(G, hom=None):
-
 
         # check syntax
         if G.metamodel_ is None:
