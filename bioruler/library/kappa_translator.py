@@ -1549,7 +1549,6 @@ class KappaImporter(object):
                         graph.add_edge(target_name, sites_names[i][k])
 
                     # is_BND 1 elt
-                    print("LHS:", LHS)
                     if s1 in LHS[a1]['sites'].keys() and\
                        LHS[a1]['sites'][s1]['binding'] == '_':
 
@@ -1616,24 +1615,26 @@ class KappaImporter(object):
 
                                       else:
 
-                                          # BRK
+                                          if old_bind1 != "_":
 
-                                          brk_name_a_g = gen_name("BRK", action_graph)
-                                          action_graph.add_node(brk_name_a_g, "BRK")
+                                              # BRK
 
-                                          tbrk1_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
-                                          tbrk2_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
+                                              brk_name_a_g = gen_name("BRK", action_graph)
+                                              action_graph.add_node(brk_name_a_g, "BRK")
 
-                                          brk_name = gen_name("BRK")
-                                          graph.add_node(brk_name, brk_name_a_g)
+                                              tbrk1_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
+                                              tbrk2_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
 
-                                          tbrk1_name = gen_node("t_BRK", tbrk1_name_a_g, brk_name)
-                                          tbrk2_name = gen_node("t_BRK", tbrk2_name_a_g, brk_name)
+                                              brk_name = gen_name("BRK")
+                                              graph.add_node(brk_name, brk_name_a_g)
 
-                                          action_graph.add_edge(tbrk1_name_a_g, a1_type+"-"+s1)
-                                          action_graph.add_edge(tbrk2_name_a_g, a2_type+"-"+s2)
-                                          graph.add_edge(tbrk1_name, sites_names[i][k])
-                                          graph.add_edge(tbrk2_name, sites_names[j][l])
+                                              tbrk1_name = gen_node("t_BRK", tbrk1_name_a_g, brk_name)
+                                              tbrk2_name = gen_node("t_BRK", tbrk2_name_a_g, brk_name)
+
+                                              action_graph.add_edge(tbrk1_name_a_g, a1_type+"-"+s1)
+                                              action_graph.add_edge(tbrk2_name_a_g, a2_type+"-"+s2)
+                                              graph.add_edge(tbrk1_name, sites_names[i][k])
+                                              graph.add_edge(tbrk2_name, sites_names[j][l])
                                     else:
                                         if new_bind1 == new_bind2:
 
