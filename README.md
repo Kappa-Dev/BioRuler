@@ -12,7 +12,11 @@ Currently the importer from [BioPAX](http://biopax.org/) format and the exporter
 
 ### Requirement
 
-The following `Python 3` packages are required
+To use BioPAX importer you need to have Java installed.
+
+To use Kappa exporter you need to have OCaml installed.
+
+The following `Python 3` packages are required:
 
 ```
 cycler==0.10.0
