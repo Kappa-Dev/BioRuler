@@ -101,12 +101,12 @@ class KappaExporter(object):
 
             if hom.mapping_[G.hom.mapping_[s1]] != 's_BND':
                 raise ValueError(
-                    "Node %s have type %s, expected type s" %
+                    "Node %s have type %s, expected type s_BND" %
                     (s1, hom.mapping_[G.hom.mapping_[s1]])
                 )
             if hom.mapping_[G.hom.mapping_[s2]] != 's_BND':
                 raise ValueError(
-                    "Node %s have type %s, expected type s" %
+                    "Node %s have type %s, expected type s_BND" %
                     (s2, hom.mapping_[G.hom.mapping_[s2]])
                 )
 
@@ -131,7 +131,7 @@ class KappaExporter(object):
 
                 if hom.mapping_[G.hom.mapping_[s]] != 's_BND':
                     raise ValueError(
-                        "Node %s have type %s, expected type s" %
+                        "Node %s have type %s, expected type s_BND" %
                         (s, hom.mapping_[G.hom.mapping_[s]])
                     )
 
@@ -652,62 +652,146 @@ class KappaExporter(object):
 
         def do_isBND(site1, site2, LHS, RHS):
             # source agents
-            for e in G.out_edges(site1):
-                if hom.mapping_[G.hom.mapping_[e[1]]] == 'agent':
-                    a1 = e[1]
-            for e in G.out_edges(site2):
-                if hom.mapping_[G.hom.mapping_[e[1]]] == 'agent':
-                    a2 = e[1]
+            if site1 in G.nodes():
+                for e in G.out_edges(site1):
+                    if hom.mapping_[G.hom.mapping_[e[1]]] == 'agent':
+                        a1 = e[1]
+            else:
+                for e in A_G.out_edges(site1):
+                    if hom.mapping_[e[1]] == 'agent':
+                        a1 = e[1]
+                found = False
+                for a in LHS.keys():
+                    if G.hom.mapping_[a] == a1:
+                        a1 = a
+                        for site, a1 in G.in_edges(a1):
+                            if G.hom.mapping_[site] == site1:
+                                site1 = site
+                        found = True
+                if not found:
+                    a1 = "not_bnd__"+str(a1)
+                    LHS[a1] = {}
+                    RHS[a1] = {}
 
-            if a1 not in LHS.keys():
-                LHS[a1] = {}
-            if a2 not in LHS.keys():
-                LHS[a2] = {}
+            if site2 in G.nodes():
+                for e in G.out_edges(site2):
+                    if hom.mapping_[G.hom.mapping_[e[1]]] == 'agent':
+                        a2 = e[1]
+            else:
+                for e in A_G.out_edges(site2):
+                    if hom.mapping_[e[1]] == 'agent':
+                        a2 = e[1]
+                found = False
+                for a in LHS.keys():
+                    if a[:9] != "not_bnd__":
+                        if G.hom.mapping_[a] == a2:
+                            a2 = a
+                            for site, a2 in G.in_edges(a2):
+                                if G.hom.mapping_[site] == site2:
+                                    site2 = site
+                if not found:
+                    a2 = "not_bnd__"+str(a2)
+                    LHS[a2] = {}
+                    RHS[a2] = {}
 
-            if a1 not in RHS.keys():
-                RHS[a1] = {}
-            if a2 not in RHS.keys():
-                RHS[a2] = {}
+            # agent 1
+            if a1 in G.nodes():
+                if a1 not in LHS.keys():
+                    LHS[a1] = {}
+                if a1 not in RHS.keys():
+                    RHS[a1] = {}
 
-            # checking for specified states
+                # checking for specified states
 
-            state1 = None
-            state2 = None
-            for node, site1 in G.in_edges(site1):
-                if hom.mapping_[G.hom.mapping_[node]] == 'state':
-                    if G.node[node].attrs_['val'] != set():
-                        state1 = deepcopy(G.node[node].attrs_['val'])
-                        state1 = state1.pop()
-            for node, site2 in G.in_edges(site2):
-                if hom.mapping_[G.hom.mapping_[node]] == 'state':
-                    if G.node[node].attrs_['val'] != set():
-                        state2 = deepcopy(G.node[node].attrs_['val'])
-                        state2 = state2.pop()
+                state1 = None
+                for node, site1 in G.in_edges(site1):
+                    if hom.mapping_[G.hom.mapping_[node]] == 'state':
+                        if G.node[node].attrs_['val'] != set():
+                            state1 = deepcopy(G.node[node].attrs_['val'])
+                            state1 = state1.pop()
 
-            # updating LHS of rule
+                # updating LHS of rule
 
-            LHS[a1][site1] = [state1,
-                                       "%s.%s_%s.%s" %
-                                       (str(a1), str(site1),
-                                        str(a2), str(site2))]
+                if site1 in LHS[a1].keys():
+                    LHS[a1][site1][1] = ("%s.%s_%s.%s" %
+                                        (str(a1), str(site1),
+                                         str(a2), str(site2)))
+                else:
+                    LHS[a1][site1] = [state1,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
 
-            LHS[a2][site2] = [state2,
-                                       "%s.%s_%s.%s" %
-                                       (str(a1), str(site1),
-                                        str(a2), str(site2))]
+                # updating RHS of rule
 
-            # updating RHS of rule
+                if site1 not in RHS[a1].keys():
+                    RHS[a1][site1] = [state1,
+                                      "%s.%s_%s.%s" %
+                                      (str(a1), str(site1),
+                                       str(a2), str(site2))]
+                elif RHS[a1][site1][1] is None:
+                    RHS[a1][site1][1] = ("%s.%s_%s.%s" %
+                                        (str(a1), str(site1),
+                                         str(a2), str(site2)))
+            else:
+                LHS[a1][site1] = [None,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
+                RHS[a1][site1] = [None,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
 
-            if site1 not in RHS[a1].keys():
-                RHS[a1][site1] = [state1,
-                                  "%s.%s_%s.%s" %
-                                  (str(a1), str(site1),
-                                   str(a2), str(site2))]
-            if site2 not in RHS[a2].keys():
-                RHS[a2][site2] = [state2,
-                                  "%s.%s_%s.%s" %
-                                  (str(a1), str(site1),
-                                   str(a2), str(site2))]
+            # agent 2
+            if a2 in G.nodes():
+                if a2 not in LHS.keys():
+                    LHS[a2] = {}
+
+                if a2 not in RHS.keys():
+                    RHS[a2] = {}
+
+                # checking for specified states
+
+                state2 = None
+                for node, site2 in G.in_edges(site2):
+                    if hom.mapping_[G.hom.mapping_[node]] == 'state':
+                        if G.node[node].attrs_['val'] != set():
+                            state2 = deepcopy(G.node[node].attrs_['val'])
+                            state2 = state2.pop()
+
+                # updating LHS of rule
+                if site2 in LHS[a2].keys():
+                    LHS[a2][site2][1] = ("%s.%s_%s.%s" %
+                                        (str(a1), str(site1),
+                                         str(a2), str(site2)))
+                else:
+                    LHS[a2][site2] = [state2,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
+
+                # updating RHS of rule
+
+                if site2 not in RHS[a2].keys():
+                    RHS[a2][site2] = [state2,
+                                      "%s.%s_%s.%s" %
+                                      (str(a1), str(site1),
+                                       str(a2), str(site2))]
+                elif RHS[a2][site2][1] is None:
+                    RHS[a2][site2][1] = ("%s.%s_%s.%s" %
+                                        (str(a1), str(site1),
+                                         str(a2), str(site2)))
+            else:
+                LHS[a2][site2] = [None,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
+                RHS[a2][site2] = [None,
+                                           "%s.%s_%s.%s" %
+                                           (str(a1), str(site1),
+                                            str(a2), str(site2))]
+
 
         def do_MOD(state, LHS, RHS):
             # site targeted
@@ -781,6 +865,19 @@ class KappaExporter(object):
                 RHS[a][site] = [state, "isFree"]
 
         A_G = G.metamodel_
+
+        def get_bindings(site):
+            bindings = []
+            for site, source in A_G.out_edges(site):
+                if hom.mapping_[source] == 's_BND':
+                    for source, bnd in A_G.out_edges(source):
+                        if hom.mapping_[bnd] == 'BND':
+                            for source2, bnd in A_G.in_edges(bnd):
+                                if source2 != source:
+                                    for site2, source2 in A_G.in_edges(source2):
+                                        if hom.mapping_[site2] == 'site':
+                                            bindings.append(site2)
+            return bindings
 
         # finding agents
 
@@ -950,8 +1047,8 @@ class KappaExporter(object):
 
             aux_rules = []
 
-            for site1, t1 in G.in_edges(s1):
-                for site2, t2 in G.in_edges(s2):
+            for site1, s1 in G.in_edges(s1):
+                for site2, s2 in G.in_edges(s2):
                     aux_aux_rules = deepcopy(rules)
                     for LHS, RHS in aux_aux_rules:
                         do_BND(site1, site2, LHS, RHS)
@@ -1065,6 +1162,65 @@ class KappaExporter(object):
 
             rules = aux_rules
 
+        # notBND in action graph
+        notBND_a_g = keys_by_value(hom.mapping_, 'not_BND')
+        # notBND in nugget
+        notBND_g = set()
+        for notbnd in notBND_a_g:
+            notBND_g.update(keys_by_value(G.hom.mapping_, notbnd))
+        for notbnd in notBND_g:
+            # sources of BND
+            s1 = G.in_edges(notbnd)[0][0]
+            s2 = G.in_edges(notbnd)[1][0]
+
+            sites1 = [G.hom.mapping_[site] for site, s in G.in_edges(s1)]
+            sites2 = [G.hom.mapping_[site] for site, s in G.in_edges(s2)]
+
+            done = []
+            aux_rules = []
+
+            for site1 in sites1:
+                binding_site1 = get_bindings(site1)
+                for site2 in binding_site1:
+                    if site2 not in sites2:
+                        aux_aux_rules = deepcopy(rules)
+                        for LHS, RHS in aux_aux_rules:
+                            if {site1, site2} not in done:
+                                do_isBND(site1, site2, LHS, RHS)
+                                done.append({site1, site2})
+                        aux_rules += aux_aux_rules
+
+            for site2 in sites2:
+                binding_site2 = get_bindings(site2)
+                for site1 in binding_site2:
+                    if site1 not in sites1:
+                        aux_aux_rules = deepcopy(rules)
+                        for LHS, RHS in aux_aux_rules:
+                            if {site1, site2} not in done:
+                                do_isBND(site1, site2, LHS, RHS)
+                                done.append({site1, site2})
+                        aux_rules += aux_aux_rules
+
+            seen = set()
+            couples = [(site1, site2) for (site1, s) in G.in_edges(s1)\
+                                      for (site2, s) in G.in_edges(s2)\
+                                      if (not (site1, site2) in seen)\
+                                      and(not (site2, site1) in seen)\
+                                      and(not seen.add((site1, site2)))]
+
+            aux_aux_rules = deepcopy(rules)
+            for site1, site2 in couples:
+                for LHS, RHS in aux_aux_rules:
+                    do_isFREE(site1, LHS, RHS)
+                aux_rules += aux_aux_rules
+
+            aux_aux_rules = deepcopy(rules)
+            for site1, site2 in couples:
+                for LHS, RHS in aux_aux_rules:
+                    do_isFREE(site2, LHS, RHS)
+                aux_rules += aux_aux_rules
+
+            rules = aux_rules
 
         context = {}
         for a in G.nodes():
@@ -1086,8 +1242,6 @@ class KappaExporter(object):
                             # updating context
 
                             context[a][site] = [state, None]
-
-
 
         return agent_sites, rules, context
 
@@ -1142,24 +1296,44 @@ class KappaExporter(object):
                         rule += ', '
                     if rule[-2:] == ', ' : rule = rule[:-2]
                     rule += '), '
-                for a in LHS.keys() :
-                    rule += str(G.hom.mapping_[a])+'('
-                    for site in LHS[a].keys():
-                        rule += str(G.hom.mapping_[site])
-                        state, binding = LHS[a][site]
-                        if state is not None:
-                            rule += '~'+str(state)
-                        if binding is not None:
-                            if binding != 'isFree':
-                                if binding in bindings.keys():
-                                    rule += '!'+bindings[binding]
-                                else:
-                                    rule += '!'+str(i)
-                                    bindings[binding] = str(i)
-                                    i += 1
-                        else:
-                            rule += '?'
-                        rule += ', '
+
+                for a in LHS.keys():
+                    if a[:9] == 'not_bnd__':
+                        rule += str(a[9:])+'('
+                        for site in LHS[a].keys():
+                            rule += str(site)
+                            state, binding = LHS[a][site]
+                            if state is not None:
+                                rule += '~'+str(state)
+                            if binding is not None:
+                                if binding != 'isFree':
+                                    if binding in bindings.keys():
+                                        rule += '!'+bindings[binding]
+                                    else:
+                                        rule += '!'+str(i)
+                                        bindings[binding] = str(i)
+                                        i += 1
+                            else:
+                                rule += '?'
+                            rule += ', '
+                    else:
+                        rule += str(G.hom.mapping_[a])+'('
+                        for site in LHS[a].keys():
+                            rule += str(G.hom.mapping_[site])
+                            state, binding = LHS[a][site]
+                            if state is not None:
+                                rule += '~'+str(state)
+                            if binding is not None:
+                                if binding != 'isFree':
+                                    if binding in bindings.keys():
+                                        rule += '!'+bindings[binding]
+                                    else:
+                                        rule += '!'+str(i)
+                                        bindings[binding] = str(i)
+                                        i += 1
+                            else:
+                                rule += '?'
+                            rule += ', '
                     if rule[-2:] == ', ' : rule = rule[:-2]
                     rule += '), '
 
@@ -1187,26 +1361,47 @@ class KappaExporter(object):
                         rule += ', '
                     if rule[-2:] == ', ' : rule = rule[:-2]
                     rule += '), '
+
                 for a in RHS.keys() :
-                    rule += str(G.hom.mapping_[a])+'('
-                    for site in RHS[a].keys():
-                        rule += str(G.hom.mapping_[site])
-                        state, binding = RHS[a][site]
-                        if state is not None:
-                            rule += '~'+str(state)
-                        if binding is not None:
-                            if binding != 'isFree':
-                                if binding in bindings.keys():
-                                    rule += '!'+bindings[binding]
-                                else:
-                                    rule += '!'+str(i)
-                                    bindings[binding] = str(i)
-                                    i += 1
-                        else:
-                            rule += '?'
-                        rule += ', '
+                    if a[:9] == 'not_bnd__':
+                        rule += str(a[9:])+'('
+                        for site in RHS[a].keys():
+                            rule += str(site)
+                            state, binding = RHS[a][site]
+                            if state is not None:
+                                rule += '~'+str(state)
+                            if binding is not None:
+                                if binding != 'isFree':
+                                    if binding in bindings.keys():
+                                        rule += '!'+bindings[binding]
+                                    else:
+                                        rule += '!'+str(i)
+                                        bindings[binding] = str(i)
+                                        i += 1
+                            else:
+                                rule += '?'
+                            rule += ', '
+                    else:
+                        rule += str(G.hom.mapping_[a])+'('
+                        for site in RHS[a].keys():
+                            rule += str(G.hom.mapping_[site])
+                            state, binding = RHS[a][site]
+                            if state is not None:
+                                rule += '~'+str(state)
+                            if binding is not None:
+                                if binding != 'isFree':
+                                    if binding in bindings.keys():
+                                        rule += '!'+bindings[binding]
+                                    else:
+                                        rule += '!'+str(i)
+                                        bindings[binding] = str(i)
+                                        i += 1
+                            else:
+                                rule += '?'
+                            rule += ', '
                     if rule[-2:] == ', ' : rule = rule[:-2]
                     rule += '), '
+
                 if rule[-2:] == ', ' : rule = rule[:-2]
 
                 rule += " @ 'NUG_%s_RULE_%s'" % (count, rule_no)
@@ -1735,10 +1930,11 @@ class KappaImporter(object):
                 nugget = TypedDiGraph()
                 KappaImporter.uncompile_rule(rule, nugget, action_graph)
 
+                nug_list.append(nugget)
+
+            for nugget in nug_list:
                 nugget.metamodel_ = action_graph
                 nugget.hom = TypedHomomorphism.canonic(nugget, action_graph)
-
-                nug_list.append(nugget)
 
             if del_out:
                 subprocess.check_call(("rm -rf %s %s %s" % (out+"rules.ka", out+"rules.json", out+"agents.json")).split(" "))

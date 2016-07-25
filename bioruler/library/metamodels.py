@@ -119,6 +119,7 @@ metamodel_kappa.add_nodes_from([
     ('t_SD', 'action'),
     ('is_FREE', 'action'),
     ('t_FREE', 'action'),
+    ('not_BND', 'action'),
 ])
 
 metamodel_kappa.add_edges_from([
@@ -127,6 +128,7 @@ metamodel_kappa.add_edges_from([
     ('site', 's_BND'),
     ('s_BND', 'BND'),
     ('s_BND', 'is_BND'),
+    ('s_BND', 'not_BND'),
     ('t_BRK', 'BRK'),
     ('t_BRK', 'site'),
     ('t_MOD', 'MOD'),
