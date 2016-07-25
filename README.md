@@ -1,8 +1,12 @@
 # BioRuler
 
-**BioRuler** is a library developed on top of the **ReGraph** library, which serves as a bridge between biological data formats describing protein-protein interactions and graph-based representation of knowledge.
+## About project
+
+**BioRuler** is a library developed on top of the [**ReGraph**](https://github.com/Kappa-Dev/ReGraph) library, which serves as a bridge between biological data formats describing protein-protein interactions and graph-based representation of knowledge.
 
 Our main motivation while developing this library was to enable the user to automatically convert protein-protein interaction data in any standard format to its graph representation following a domain-specific meta-model of choice. We would also like to give the user the possibility to manipulate this graph representation, and finally, to automatically export it to the respective Kappa code, ready for simulations, static analysis, etc.
+
+Currently the importer from [BioPAX](http://biopax.org/) format and the exporter to **Kappa** are implemeted.
 
 ## Environment configs 
 
