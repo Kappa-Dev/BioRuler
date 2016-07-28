@@ -79,6 +79,9 @@ python test.py
 ## How to use KappaImporter and KappaExporter
 
 Please find examples of use in kappa_graph_kappa.py and test_kappa.py, you can test them by running
+
 ```python test_kappa.py``` compilation of a nugget defined in the python file
+
 or
+
 ```python kappa_graph_kappa.py``` you will need a test.ka file in the current directory containing some kappa code to import and to export back
