@@ -3,14 +3,23 @@ from bioruler.library.kappa_translator import KappaExporter, KappaImporter
 import argparse
 parser = argparse.ArgumentParser(description='Test translator')
 parser.add_argument('-pars', dest='pars', action='store', type=str,
-                    help='parser path')
+                    default=None, help='parser path')
 parser.add_argument('-p', dest='p', action='store_const', const=True,
                     default=False, help='print results')
 args = parser.parse_args()
 
+if args.pars is None:
+    args.pars = "bioruler/library/kappa_to_graph.byte"
+
+# open kappa file
+
 in_file = open('test.ka', 'r')
 
+# uncompile kappa file using args.pars as parser, imported is a nugget list, imported[i].metamodel_ is their action graph and imported[î].hom is a valid homomorphism between the i-th nugget and the action graph
+
 imported = KappaImporter.uncompile(["test.ka"], parser=args.pars)
+
+# compile back the nuggets into rules
 
 compiled = KappaExporter.compile_nugget_list(imported)
 

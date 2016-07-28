@@ -1,6 +1,5 @@
 from bioruler.library.kappa_translator import KappaExporter
 from regraph.library.data_structures import (TypedDiGraph, TypedHomomorphism)
-from regraph.library.utils import plot_graph
 
 def make_action_graph(G, hom):
     res = TypedDiGraph()
@@ -22,6 +21,8 @@ def make_action_graph(G, hom):
             res.add_edge(n1, n2, attrs)
 
     return res
+
+# nugget
 
 graph = TypedDiGraph()
 graph.add_nodes_from([
@@ -59,6 +60,7 @@ graph.add_edges_from([
     ('t_MOD1', 'a1_1_s'),
 ])
 
+# action graph
 
 action_graph = make_action_graph(
     graph,
@@ -105,7 +107,11 @@ action_graph.add_edges_from([
     ('b_1', 's_BND31'), ('a_1', 's_BND32'),
 ])
 
+# make action graph be the metamodel of the nugget then create a valid homomorphism between them
+
 graph.metamodel_ = action_graph
 graph.hom = TypedHomomorphism.canonic(graph, action_graph)
+
+# compile the nugget into kappa agents and rules declarations, here we use compile_nugget because we only one nugget to compile, use compile_nugget_list if you have more
 
 print("\n".join(KappaExporter.compile_nugget(graph)))
