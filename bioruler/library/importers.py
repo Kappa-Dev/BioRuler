@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 """."""
 from regraph.library.data_structures import (TypedDiGraph,
                                              TypedHomomorphism)
+=======
+"""The importers from the biological data fromats to the action graph and nuggets."""
+from regraph.library.data_structures import TypedDiGraph
+>>>>>>> 6a714ef0b32479bea64be89986a9352cb6d233be
 
 from bioruler.library.metamodels import (metamodel_AG, metamodel_kappa)
 from bioruler.library.biopax_utils import BioPAXModel
@@ -11,22 +16,27 @@ import json
 
 
 def generate_family_action_node(family_id):
+    """Generate FAM action node tuple."""
     return ("%s_family" % family_id, "FAM")
 
 
 def generate_family_source(family_id):
+    """Generate source FAM action node tuple."""
     return ("%s_family_s" % family_id, "FAM_s")
 
 
 def generate_family_target(family_id):
+    """Generate target FAM action node tuple."""
     return ("%s_family_t" % family_id, "FAM_t")
 
 
 def generate_modification_source(reaction_id, target):
+    """Generate source MOD action node tuple."""
     return ("%s_of_%s_s" % (reaction_id, target), "MOD_s")
 
 
 def generate_modification_target(reaction_id, target):
+    """Generate target MOD action node tuple."""
     return ("%s_of_%s_t" % (reaction_id, target), "MOD_t")
 
 
@@ -39,7 +49,7 @@ class BioPAXImporter():
         self.data_ = BioPAXModel()
 
     def collect_proteins(self, ignore_families=False):
-        """."""
+        """Collect the ids of proteins, regions, flags and residues."""
         print("Collecting proteins and families...")
         if self.data_ is not None:
             proteins = self.data_.model_.getObjects(self.data_.protein_reference_class_)
@@ -63,7 +73,8 @@ class BioPAXImporter():
                     if self.data_.is_fragment(el.getUri()):
                         features = el.getFeature()
                         for f in features:
-                            if f.getModelInterface() == self.data_.fragment_feature_class_:
+                            if f.getModelInterface() ==\
+                               self.data_.fragment_feature_class_:
                                 if f.getUri() in distinct_regions.keys():
                                     distinct_regions[f.getUri()].add(
                                         el.getUri())
@@ -77,8 +88,9 @@ class BioPAXImporter():
                 # Collect residues and flags
                 physical_proteins_id =\
                     [el.getUri() for el in physical_proteins]
-                modifications = self.data_.get_modifications(physical_proteins_id)
-                # If residue is in the location of region, we add it to the region
+                modifications = self.data_.get_modifications(
+                    physical_proteins_id)
+                # If residue is in the location of the region, we add it to the region
 
                 for region_id in distinct_regions.keys():
                     for residue_id in modifications["residues"]:
@@ -100,8 +112,10 @@ class BioPAXImporter():
                         physical_proteins = protein.getEntityReferenceOf()
 
                         # Collect residues and flags
-                        physical_proteins_id = [el.getUri() for el in physical_proteins]
-                        modifications = self.data_.get_modifications(physical_proteins_id)
+                        physical_proteins_id =\
+                            [el.getUri() for el in physical_proteins]
+                        modifications = self.data_.get_modifications(
+                            physical_proteins_id)
                         families[uri].update(modifications)
                     else:
                         families[uri] = {}
@@ -120,6 +134,7 @@ class BioPAXImporter():
         return (protein_data, families)
 
     def collect_small_molecules(self, ignore_families=False):
+        """Collect ids of small molecules."""
         print("Collecting small molecules and families...")
         small_molecules = self.data_.model_.getObjects(
             self.data_.small_molecule_reference_class_)
@@ -149,6 +164,7 @@ class BioPAXImporter():
         return (small_molecules_data, families)
 
     def collect_complexes(self, ignore_families=False):
+        """Collect ids of complexes, flags, residues and components."""
         print("Collecting complexes and families...")
         complexes = self.data_.model_.getObjects(
             self.data_.complex_class_)
@@ -163,7 +179,8 @@ class BioPAXImporter():
                 complexes_data[uri]["components"] = set()
                 for el in complex.getComponent():
                     if not el.getModelInterface() == self.data_.complex_class_:
-                        complexes_data[uri]["components"].add(el.getEntityReference().getUri())
+                        complexes_data[uri]["components"].add(
+                            el.getEntityReference().getUri())
                     else:
                         complexes_data[uri]["components"].add(el.getUri())
                 # Collect residues and flags
@@ -175,7 +192,8 @@ class BioPAXImporter():
                     families[uri]["members"] = set()
                     for m in complex.getMemberPhysicalEntity():
                         if not m.getModelInterface() == self.data_.complex_class_:
-                            families[uri]["members"].add(m.getEntityReference().getUri())
+                            families[uri]["members"].add(
+                                m.getEntityReference().getUri())
                         else:
                             families[uri]["members"].add(m.getUri())
 
@@ -186,6 +204,7 @@ class BioPAXImporter():
         return (complexes_data, families)
 
     def collect_modifications(self, ignore_families=False):
+        """Detect and collect modifications and their participants."""
         print("Collecting modifications...")
         catalysis = self.data_.model_.getObjects(
             self.data_.catalysis_class_)
@@ -255,7 +274,7 @@ class BioPAXImporter():
                                             (resulting_entity.getEntityReference().getUri(),
                                              f.getUri(), 0))
 
-                    # Extract phenomenological modifications (Voodoo starts here)
+                    # Extract modifications of phenomenological states (Voodoo starts here)
                     lhs_complexes = []
                     rhs_complexes = []
                     for el in LHS:
@@ -287,24 +306,6 @@ class BioPAXImporter():
                                             f.getUri()
                                         )
 
-                                # print("LHS ", lhs_complexes[0].getName())
-                                # for f in lhs_complexes[0].getFeature():
-                                    # print("\t", f)
-                                # for component in lhs_components:
-                                    # entity = self.data_.model_.getByID(component)
-                                    # print("\t", entity.getName())
-                                    # for f in entity.getFeature():
-                                        # print("\t\t", f)
-
-                                # print("RHS ", rhs_complexes[0].getName())
-                                # for f in rhs_complexes[0].getFeature():
-                                #     print("\t", f)
-                                # for component in rhs_components:
-                                #     entity = self.data_.model_.getByID(component)
-                                #     print("\t", entity.getName())
-                                #     for f in entity.getFeature():
-                                #         print("\t\t", f)
-
                                 intersection = lhs_components.intersection(rhs_components)
                                 l_difference = lhs_components.difference(rhs_components)
                                 r_difference = rhs_components.difference(lhs_components)
@@ -331,29 +332,19 @@ class BioPAXImporter():
                                         r_ref.add(entity.getUri())
                                         right_ref_entity.append((entity.getUri(), entity))
                                 if l_ref == r_ref:
-                                    # print("PARTICULAR MODIFICATION OF:")
                                     for ref, entity in right_ref_entity:
-                                        # print("\t", entity.getName())
                                         for left_ref, left_entity in left_ref_entity:
                                             if ref == left_ref:
                                                 for f in entity.getFeature():
                                                     if f not in left_entity.getFeature():
-                                                        # print("\t\t\t", f, "1 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (ref, f.getUri(), 1)
                                                         )
-                                                    else:
-                                                        pass
-                                                        # print("\t\t\t", f, "1 - no")
                                                 for f in left_entity.getFeature():
                                                     if f not in entity.getFeature():
-                                                        # print("\t\t\t", f, "0 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (ref, f.getUri(), 0)
                                                         )
-                                                    else:
-                                                        pass
-                                                        # print("\t\t\t", f, "0 - no")
                                 else:
                                     if len(l_ref) == 1 and len(r_ref) == 1:
                                         left_entity = self.data_.model_.getByID(list(l_ref)[0])
@@ -362,30 +353,36 @@ class BioPAXImporter():
                                            self.data_.small_molecule_reference_class_ and\
                                            right_entity.getModelInterface() ==\
                                            self.data_.small_molecule_reference_class_:
-                                            # print("SMALL MOLECULE MODIFICATION: ")
                                             for el in intersection:
                                                 entity = self.data_.model_.getByID(el)
                                                 for f in rhs_complexes[0].getFeature():
                                                     if f not in lhs_complexes[0].getFeature():
-                                                        # print("\t\t\t", f, "1 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (entity.getEntityReference().getUri(), f.getUri(), 1)
                                                         )
-                                                    else:
-                                                        pass
-                                                        # print("\t\t\t", f, "1 - no")
                                                 for f in lhs_complexes[0].getFeature():
                                                     if f not in rhs_complexes[0].getFeature():
-                                                        # print("\t\t\t", f, "0 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (entity.getEntityReference().getUri(), f.getUri(), 0)
                                                         )
-                                                    else:
-                                                        pass
-                                                        # print("\t\t\t", f, "0 - no")
         return modification_data
 
+    # def collect_bindings(self, ignore_families=False):
+    #     catalysis = self.data_.model_.getObjects(
+    #         self.data_.catalysis_class_)
+    #     modification_data = {}
+    #     for reaction in catalysis:
+    #         uri = reaction.getUri()
+    #         # Get reaction controlled
+    #         for controlled_reaction in reaction.getControlled():
+    #             # We are intereseted in Complex Assemblies
+    #             if controlled_reaction.getModelInterface() ==\
+    #                self.data_.biochemical_reaction_class_:
+    #                 LHS = controlled_reaction.getLeft()
+    #                 RHS = controlled_reaction.getRight()
+
     def generate_proteins(self, proteins, graph):
+        """Generate the nodes in the action graph for proteins."""
         print("Generating nodes for proteins...")
         nodes = []
         edges = []
@@ -429,14 +426,16 @@ class BioPAXImporter():
                             (region_id, protein_id)
                         )
                         for flag in region_data["flags"]:
-                            flag_node = self.data_.flag_to_node(flag, region_id)
+                            flag_node = self.data_.flag_to_node(
+                                flag, region_id)
                             if flag_node is not None:
                                 nodes.append(flag_node)
                                 edges.append(
                                     (flag_node[0], region_id)
                                 )
                         for residue in region_data["residues"]:
-                            residue_node = self.data_.residue_to_node(residue, region_id)
+                            residue_node = self.data_.residue_to_node(
+                                residue, region_id)
                             if residue_node is not None:
                                 nodes.append(residue_node)
                                 edges.append(
@@ -446,7 +445,8 @@ class BioPAXImporter():
                                     (residue_node[0], protein_id)
                                 )
 
-                                flag_node = self.data_.flag_to_node(residue, residue_node[0])
+                                flag_node = self.data_.flag_to_node(
+                                    residue, residue_node[0])
                                 if flag_node is not None:
                                     nodes.append(flag_node)
                                     edges.append(
@@ -456,6 +456,7 @@ class BioPAXImporter():
         graph.add_edges_from(edges)
 
     def generate_families(self, families, graph):
+        """Generate the nodes in the action graph for families."""
         print("Generating nodes for families...")
         nodes = []
         edges = []
@@ -511,6 +512,7 @@ class BioPAXImporter():
         graph.add_edges_from(edges)
 
     def generate_small_molecules(self, small_molecules, graph):
+        """Generate the nodes in the action graph for small molecules."""
         print("Generating nodes for small molecules...")
         nodes = []
         for molecule_id in small_molecules:
@@ -520,6 +522,7 @@ class BioPAXImporter():
         graph.add_nodes_from(nodes)
 
     def generate_complexes(self, complexes, graph):
+        """Generate the nodes in the action graph for complexes."""
         print("Generating nodes for complexes...")
         nodes = []
         edges = []
@@ -562,7 +565,8 @@ class BioPAXImporter():
         graph.add_nodes_from(nodes)
         graph.add_edges_from(edges)
 
-    def generate_modification(self, modifications, graph):
+    def generate_modifications(self, modifications, graph):
+        """Generate the nodes in the action graph and the nuggets for modifications."""
         print("Generating nodes for modifications...")
 
         nuggets = []
@@ -610,7 +614,8 @@ class BioPAXImporter():
                     elif self.data_.is_fragment_feature(feature):
                         continue
                     else:
-                        raise ValueError("Invalid modification %s!" % reaction_id)
+                        raise ValueError(
+                            "Invalid modification %s!" % reaction_id)
 
             for entity, flag, value in data["targets"]:
                 # add modification action to the
@@ -687,11 +692,13 @@ class BioPAXImporter():
                 elif self.data_.is_fragment_feature(flag):
                     continue
                 else:
-                    raise ValueError("Invalid modification %s!" % reaction_id)
+                    raise ValueError(
+                        "Invalid modification %s!" % reaction_id)
             nuggets.append(nugget)
         return nuggets
 
     def collect_agents(self, ignore_families=False):
+        """Collect all the agents for the action graph construction."""
         (proteins, protein_families) = self.collect_proteins(ignore_families)
         (small_molecules, small_molecule_families) =\
             self.collect_small_molecules(ignore_families)
@@ -708,6 +715,7 @@ class BioPAXImporter():
         return agents
 
     def collect_actions(self, ignore_families=False):
+        """Collect all the interactions for the action graph and nuggets."""
         modifications = self.collect_modifications(ignore_families)
         # bindings = self.collect_bindings(ignore_families)
         actions = {
@@ -717,6 +725,7 @@ class BioPAXImporter():
         return actions
 
     def import_model(self, filename, ignore_families=False):
+        """Collect the data from BioPAX and generate action graph and nuggets."""
         self.data_.load(filename)
         graph = TypedDiGraph(self.metamodel_)
 
@@ -728,7 +737,8 @@ class BioPAXImporter():
         self.generate_families(agents["small_molecule_families"], graph)
         self.generate_complexes(agents["complexes"], graph)
         self.generate_families(agents["complex_families"], graph)
-        modification_nuggets = self.generate_modification(actions["MOD"], graph)
+        modification_nuggets = self.generate_modifications(
+            actions["MOD"], graph)
 
         return graph, modification_nuggets
 

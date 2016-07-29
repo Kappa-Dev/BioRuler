@@ -1,16 +1,69 @@
+"""Collection of utils for managing BioPAX data."""
 import warnings
 
 from jpype import (java, startJVM, getDefaultJVMPath, JPackage)
 
+import re
+
+
+AA = {
+    "alanine": ("ala", "A"),
+    "arginine": ("arg", "R"),
+    "asparagine": ("asn", "N"),
+    "aspartic acid": ("asp", "D"),
+    "cysteine": ("cys", "C"),
+    "glutamine": ("gln", "Q"),
+    "glutamic acid": ("glu", "E"),
+    "glycine": ("gly", "G"),
+    "histidine": ("his", "H"),
+    "isoleucine": ("ile", "I"),
+    "leucine": ("leu", "L"),
+    "lysine": ("lys", "K"),
+    "methionine": ("met", "M"),
+    "phenylalanine": ("phe", "F"),
+    "proline": ("pro", "P"),
+    "serine": ("ser", "S"),
+    "threonine": ("thr", "T"),
+    "tryptophan": ("trp", "W"),
+    "tyrosine": ("tyr", "Y"),
+    "valine": ("val", "V")
+}
+
+
+def resolve_aa(modification):
+    """Resolve the name of residue amino acid to one letter code."""
+    term = list(modification.getTerm())[0]
+    letter_aa = "\[residue=([A-Z])\]"
+    results = [re.findall(aa, term) for aa in AA.keys()]
+    matched_aa = None
+    for r in results:
+        if len(r) > 0:
+            matched_aa = r[0]
+    if matched_aa is not None:
+        return AA[matched_aa][1]
+    else:
+        matched_letter_aa = re.findall(letter_aa, term)
+        if len(matched_letter_aa) > 0:
+            return matched_letter_aa[0]
+        else:
+            warnings.warn("Could not resolve amino-acid!")
+
 
 class BioPAXModel():
+    """Paxtools model for BioPAX data and utils."""
 
     def __init__(self):
         """Initialize Java and load BioPAX classes of interest."""
-        startJVM(getDefaultJVMPath(), "-ea", "-Xmx1g", "-Djava.class.path=paxtools-5.0.0-20160601.jar")
+        startJVM(
+            getDefaultJVMPath(),
+            "-ea",
+            "-Xmx1g",
+            "-Djava.class.path=paxtools.jar")
+
         self.java_io_ = JPackage("java.io")
         self.paxtools_ = JPackage("org.biopax.paxtools")
-        self.io_ = self.paxtools_.io.SimpleIOHandler(self.paxtools_.model.BioPAXLevel.L3)
+        self.io_ = self.paxtools_.io.SimpleIOHandler(
+            self.paxtools_.model.BioPAXLevel.L3)
 
         self.protein_class_ = java.lang.Class.forName(
             "org.biopax.paxtools.model.level3.Protein", True,
@@ -64,7 +117,7 @@ class BioPAXModel():
         file_is.close()
 
     def is_protein_family(self, reference_id):
-        """."""
+        """Check if the protein object is a family."""
         reference = self.model_.getByID(reference_id)
         if len(reference.getMemberEntityReference()) > 0:
             return True
@@ -76,12 +129,12 @@ class BioPAXModel():
             return False
 
     def is_complex_family(self, complex_id):
-        """."""
+        """Check if the complex object is a family."""
         complex = self.model_.getByID(complex_id)
         return len(complex.getMemberPhysicalEntity()) > 0
 
     def is_fragment(self, protein_id):
-        """."""
+        """Check if the protein object is a fragment (region)."""
         protein = self.model_.getByID(protein_id)
         features = protein.getFeature()
         for f in features:
@@ -90,7 +143,7 @@ class BioPAXModel():
         return False
 
     def is_flag(self, feature_id):
-        """."""
+        """Check if the feature is a state flag."""
         feature = self.model_.getByID(feature_id)
         if feature.getModelInterface() == self.modification_feature_class_:
             if feature.getFeatureLocation() is None:
@@ -98,7 +151,7 @@ class BioPAXModel():
         return False
 
     def is_residue(self, feature_id):
-        """."""
+        """Check if the feature is a residue."""
         feature = self.model_.getByID(feature_id)
         if feature.getModelInterface() == self.modification_feature_class_:
             if feature.getFeatureLocation() is not None:
@@ -106,14 +159,14 @@ class BioPAXModel():
         return False
 
     def is_fragment_feature(self, feature_id):
-        """."""
+        """Check if the feature is a fragment (region) definition."""
         feature = self.model_.getByID(feature_id)
         if feature.getModelInterface() == self.fragment_feature_class_:
             return True
         return False
 
     def protein_reference_to_node(self, protein_reference_id):
-        """."""
+        """Convert protein reference data to node."""
         protein_reference = self.model_.getByID(protein_reference_id)
         xref = set(protein_reference.getXref())
         if len(xref) > 1:
@@ -145,7 +198,7 @@ class BioPAXModel():
         return (protein_reference.getUri(), "protein", protein_attrs)
 
     def region_to_node(self, region_feature_id):
-        """."""
+        """Convert region data to node."""
         region_feature = self.model_.getByID(region_feature_id)
         location = region_feature.getFeatureLocation()
         region_id = region_feature.getUri()
@@ -160,18 +213,26 @@ class BioPAXModel():
         return (region_id, "region", region_attrs)
 
     def residue_to_node(self, residue_id, protein_id=None):
-        """."""
+        """Convert residue data to node."""
         residue = self.model_.getByID(residue_id)
         references = set(
-            [el.getEntityReference().getUri() for el in residue.getFeatureOf()])
+            [el.getEntityReference().getUri() for el in residue.getFeatureOf()]
+        )
         if len(references) > 1:
-            warnings.warn("Residue (%s) references to more than one protein!" % (residue_id))
+            warnings.warn(
+                "Residue (%s) references to more than one protein!" %
+                (residue_id))
         residue_attrs = {}
-        residue_attrs["loc"] = residue.getFeatureLocation().getSequencePosition()
-        return ("%s_residue_%s" % (protein_id, residue_id), "residue", residue_attrs)
+        residue_attrs["loc"] =\
+            residue.getFeatureLocation().getSequencePosition()
+        aa = resolve_aa(residue.getModificationType())
+        if aa is not None:
+            residue_attrs["aa"] = aa
+        return ("%s_residue_%s" %
+                (protein_id, residue_id), "residue", residue_attrs)
 
     def flag_to_node(self, flag_id, protein_id=None):
-        """."""
+        """Convert state flag data to node."""
         flag = self.model_.getByID(flag_id)
         references = set()
         for el in flag.getFeatureOf():
@@ -182,17 +243,19 @@ class BioPAXModel():
 
         if len(references) > 1:
             warnings.warn(
-                "State flag (%s) references to more than one protein!" % (flag_id))
+                "State flag (%s) references to more than one protein!" %
+                (flag_id))
         flag_attrs = {}
         states = list(flag.getModificationType().getTerm())
         if len(states) == 1:
             flag_attrs[states[0]] = [0, 1]
             return ("%s_flag_%s" % (protein_id, flag_id), "state", flag_attrs)
         else:
-            warnings.warn("Ambiguous state (%s)! Cannot convert to node" % states)
+            warnings.warn("Ambiguous state (%s)! Cannot convert to node" %
+                          states)
 
     def family_reference_to_node(self, family_reference_id):
-        """."""
+        """Convert family reference data to node."""
         family_reference = self.model_.getByID(family_reference_id)
         family_attrs = {}
         family_attrs["Name"] = list(family_reference.getName())
@@ -200,7 +263,7 @@ class BioPAXModel():
         return (family_reference.getUri(), "family", family_attrs)
 
     def small_molecule_to_node(self, small_molecule_id):
-        """."""
+        """Convert small molecule data to node."""
         small_molecule_reference = self.model_.getByID(small_molecule_id)
         xref = set(small_molecule_reference.getXref())
         if len(xref) > 1:
@@ -231,7 +294,7 @@ class BioPAXModel():
         return (small_molecule_reference.getUri(), "small_molecule", molecule_attrs)
 
     def complex_to_node(self, complex_id):
-        """."""
+        """Convert complex data to node."""
         complex = self.model_.getByID(complex_id)
         complex_attrs = {}
         complex_attrs["Name"] = list(complex.getName())
@@ -240,6 +303,7 @@ class BioPAXModel():
         return (complex.getUri(), "complex", complex_attrs)
 
     def modification_to_node(self, reaction_id, target):
+        """Convert modification data to node."""
         reaction = self.model_.getByID(reaction_id)
         reaction_attrs = {}
         for xref in reaction.getXref():
@@ -258,7 +322,7 @@ class BioPAXModel():
         return ("%s_of_%s" % (reaction_id, target), "MOD", reaction_attrs)
 
     def get_modifications(self, physical_entities):
-        """."""
+        """Get all residues and state flags of the physical entity."""
         residues = set()
         flags = set()
         for e in physical_entities:
@@ -273,7 +337,7 @@ class BioPAXModel():
         return {"residues": residues, "flags": flags}
 
     def residue_in_region(self, residue_id, region_id):
-        """."""
+        """Test whether residue lies in the given region."""
         residue = self.model_.getByID(residue_id)
         region = self.model_.getByID(region_id)
 
@@ -282,7 +346,9 @@ class BioPAXModel():
         region_end = region_location.getSequenceIntervalEnd()
 
         residue_location = residue.getFeatureLocation()
-        if region_start is not None and region_end is not None and residue_location is not None:
+        if region_start is not None and\
+           region_end is not None and\
+           residue_location is not None:
             x = residue_location.getSequencePosition()
             start = region_start.getSequencePosition()
             end = region_end.getSequencePosition()
