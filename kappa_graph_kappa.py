@@ -1,4 +1,5 @@
-from bioruler.library.kappa_translator import KappaExporter, KappaImporter
+from bioruler.library.exporters import KappaExporter
+from bioruler.library.importers import KappaImporter
 
 import argparse
 parser = argparse.ArgumentParser(description='Test translator')

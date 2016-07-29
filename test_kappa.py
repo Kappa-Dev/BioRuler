@@ -1,4 +1,4 @@
-from bioruler.library.kappa_translator import KappaExporter
+from bioruler.library.exporters import KappaExporter
 from regraph.library.data_structures import (TypedDiGraph, TypedHomomorphism)
 
 def make_action_graph(G, hom):

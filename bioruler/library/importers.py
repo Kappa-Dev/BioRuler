@@ -1,8 +1,13 @@
 """."""
-from regraph.library.data_structures import TypedDiGraph
+from regraph.library.data_structures import (TypedDiGraph,
+                                             TypedHomomorphism)
 
-from bioruler.library.metamodels import metamodel_AG
+from bioruler.library.metamodels import (metamodel_AG, metamodel_kappa)
 from bioruler.library.biopax_utils import BioPAXModel
+
+import subprocess
+import os
+import json
 
 
 def generate_family_action_node(family_id):
@@ -352,7 +357,7 @@ class BioPAXImporter():
                                 else:
                                     if len(l_ref) == 1 and len(r_ref) == 1:
                                         left_entity = self.data_.model_.getByID(list(l_ref)[0])
-                                        right_entity = self.data_.model_.getByID(list(r_ref)[0]) 
+                                        right_entity = self.data_.model_.getByID(list(r_ref)[0])
                                         if left_entity.getModelInterface() ==\
                                            self.data_.small_molecule_reference_class_ and\
                                            right_entity.getModelInterface() ==\
@@ -726,3 +731,483 @@ class BioPAXImporter():
         modification_nuggets = self.generate_modification(actions["MOD"], graph)
 
         return graph, modification_nuggets
+
+class KappaImporter(object):
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def uncompile_agents(agents):
+        action_graph = TypedDiGraph()
+        for agent, sites in agents.items():
+            action_graph.add_node(agent, "agent")
+            for site, states in sites.items():
+
+                action_graph.add_node(agent+"-"+site, "site")
+                action_graph.add_edge(agent+"-"+site, agent)
+
+                action_graph.add_node(agent+"-"+site+"-s",
+                                      "state",
+                                      attrs={'val':set(states)})
+                action_graph.add_edge(agent+"-"+site+"-s", agent+"-"+site)
+
+        return action_graph
+
+    @staticmethod
+    def uncompile_rule(rule, graph, action_graph, count='0'):
+        def gen_name(name, graph=graph):
+            i = 0
+            new_name = name+"-"+count
+            while new_name in graph.nodes():
+                i+=1
+                new_name = name+"-"+count+"-"+str(i)
+            return new_name
+
+        def gen_node(name, name_a_g, link, graph=graph):
+            target_name = gen_name(name, graph)
+            graph.add_node(target_name, name_a_g)
+            graph.add_edge(target_name, link)
+
+            return target_name
+        LHS, RHS = rule
+        aux = {}
+        for k,v in LHS:
+            new_name = k
+            while new_name in aux.keys():
+                new_name += "."+k
+            aux[new_name] = {'name':k, 'sites':v}
+        LHS = aux
+
+        aux = {}
+        for k,v in RHS:
+            new_name = k
+            while new_name in aux.keys():
+                new_name += "."+k
+            aux[new_name] = {'name':k, 'sites':v}
+        RHS = aux
+
+        agents = []
+        a_sites = []
+        agents_names = []
+        sites_names = []
+        el_count = {}
+
+        for a, s in LHS.items():
+            agents.append(a)
+            a_sites.append(list(s['sites'].items()))
+
+        for a, s in RHS.items():
+            if a not in agents:
+                agents.append(a)
+                a_sites.append(list(s['sites'].items()))
+            else:
+                y = agents.index(a)
+                for site, v in a_sites[y]:
+                    if site not in s['sites'].keys():
+                        agents.append(a)
+                        a_sites.append(list(s['sites'].items()))
+
+        for i in range(len(agents)):
+            agent = agents[i]
+            sites = a_sites[i]
+
+            if agent in LHS.keys():
+                agent_type = LHS[agent]['name']
+            else:
+                agent_type = RHS[agent]['name']
+
+            agent_name = gen_name(agent_type)
+            agents_names.append(agent_name)
+            graph.add_node(agent_name, agent_type)
+
+            names = []
+            for site, value in sites:
+                site_name = gen_name(agent_type+"-"+site)
+                graph.add_node(site_name, agent_type+"-"+site)
+                names.append(site_name)
+                graph.add_edge(site_name, agent_name)
+
+                state = value["state"]
+                if state != []:
+                    state_name = site_name+"-s"
+                    graph.add_node(state_name,
+                                   agent_type+"-"+site+"-s",
+                                   attrs={'val':state[0]})
+                    graph.add_edge(state_name, site_name)
+            sites_names.append(names)
+
+        treated_sd = [False for i in agents]
+
+        # SYN/DEG
+
+        creations = []
+        deletions = []
+        for i in range(len(agents)):
+            a1 = agents[i]
+
+            if a1 not in LHS.keys():
+                creations.append((a1,agents_names[i]))
+                treated_sd[i] = True
+            elif a1 not in RHS.keys():
+                deletions.append((a1,agents_names[i]))
+                treated_sd[i] = True
+            else:
+                a1_indexes = [i for i, x in enumerate(agents) if x == a1 if not treated_sd[i]]
+                if len(a1_indexes) > 1:
+                    a1_ind1 = a1_indexes[0]
+                    a1_ind2 = a1_indexes[1]
+                    if a_sites[a1_ind1] != a_sites[a1_ind2]:
+                        if LHS[a1]['sites'] == a_sites[a1_ind1]:
+                            creations.append((a1, agents_names[a1_ind1]))
+                            deletions.append((a1, agents_names[a1_ind2]))
+                        else:
+                            creations.append((a1, agents_names[a1_ind2]))
+                            deletions.append((a1, agents_names[a1_ind1]))
+                        treated_sd[a1_ind1] = True
+                        treated_sd[a1_ind2] = True
+
+        if creations+deletions != []:
+            syn_name_a_g = gen_name("SYN/DEG", action_graph)
+            action_graph.add_node(syn_name_a_g, "SYN/DEG")
+
+            source_name_a_g = gen_name("s_SD", action_graph)
+            action_graph.add_node(source_name_a_g, "s_SD")
+            action_graph.add_edge(source_name_a_g, syn_name_a_g)
+
+            target_name_a_g = gen_name("t_SD", action_graph)
+            action_graph.add_node(target_name_a_g, "t_SD")
+            action_graph.add_edge(target_name_a_g, syn_name_a_g)
+
+            syn_name = gen_name("SYN/DEG")
+            graph.add_node(syn_name, syn_name_a_g)
+
+        for node in deletions:
+
+            node_type = LHS[node[0]]['name']
+
+            source_name = gen_name("s_SD")
+            graph.add_node(source_name, source_name_a_g)
+            graph.add_edge(source_name, syn_name)
+
+            action_graph.add_edge(node_type, source_name_a_g)
+            graph.add_edge(node[1], source_name)
+
+        for node in creations:
+
+            node_type = RHS[node[0]]['name']
+
+            target_name = gen_name("t_SD")
+            graph.add_node(target_name, target_name_a_g)
+            graph.add_edge(target_name, syn_name)
+
+            new_node = node[1]
+
+            action_graph.add_edge(target_name_a_g, node_type)
+            graph.add_edge(target_name, new_node)
+
+        bounds = []
+
+        for i in range(len(agents)):
+            a1 = agents[i]
+
+            if a1 in LHS.keys():
+                a1_type = LHS[a1]['name']
+            else:
+                a1_type = RHS[a1]['name']
+
+            if a1 in LHS.keys() and a1 in RHS.keys():
+
+                for k in range(len(a_sites[i])):
+                    # MOD
+                    s1 = a_sites[i][k][0]
+                    if s1 in RHS[a1]['sites'].keys() and\
+                       RHS[a1]['sites'][s1]['state'] != []:
+                       if s1 in LHS[a1]['sites'].keys() and\
+                          LHS[a1]['sites'][s1]["state"] !=\
+                          RHS[a1]['sites'][s1]["state"]:
+
+                              new_val = RHS[a1]['sites'][s1]["state"][0]
+
+                              mod_name_a_g = gen_name("MOD", action_graph)
+
+                              if LHS[a1]['sites'][s1]["state"] != []:
+                                  old_val = LHS[a1]['sites'][s1]["state"][0]
+
+                                  action_graph.add_node(mod_name_a_g,
+                                                        "MOD",
+                                                        attrs={
+                                                         'fun': (old_val, new_val)
+                                                        })
+                              else:
+                                  action_graph.add_node(mod_name_a_g,
+                                                        "MOD",
+                                                        attrs={
+                                                         'fun': new_val
+                                                        })
+
+                              target_name_a_g = gen_node("t_MOD", "t_MOD", mod_name_a_g, action_graph)
+
+                              mod_name = gen_name("MOD")
+                              if LHS[a1]['sites'][s1]["state"] != []:
+                                  old_val = LHS[a1]['sites'][s1]["state"][0]
+
+                                  graph.add_node(mod_name,
+                                                 mod_name_a_g,
+                                                 attrs={
+                                                  'fun': (old_val, new_val)
+                                                 })
+                              else:
+                                  graph.add_node(mod_name,
+                                                 mod_name_a_g,
+                                                 attrs={
+                                                  'fun': new_val
+                                                 })
+
+                              target_name = gen_node("t_MOD", target_name_a_g, mod_name)
+
+                              action_graph.add_edge(target_name_a_g, a1_type+"-"+s1+"-s")
+
+                              if sites_names[i][k]+"-s" not in graph.nodes():
+                                  graph.add_node(sites_names[i][k]+"-s", a1_type+"-"+s1+"-s", {'val':set()})
+                                  graph.add_edge(sites_names[i][k]+"-s", sites_names[i][k])
+
+                              graph.add_edge(target_name, sites_names[i][k]+"-s")
+
+                    # is_FREE
+                    if s1 in LHS[a1]['sites'].keys() and\
+                       LHS[a1]['sites'][s1]['binding'] is None:
+
+                        isfree_name_a_g = gen_name("is_FREE", action_graph)
+                        action_graph.add_node(isfree_name_a_g, "is_FREE")
+
+                        target_name_a_g = gen_node("t_FREE", "t_FREE", isfree_name_a_g, action_graph)
+
+                        isfree_name = gen_name("is_FREE")
+                        graph.add_node(isfree_name, isfree_name_a_g)
+
+                        target_name = gen_node("t_FREE", target_name_a_g, isfree_name)
+
+                        action_graph.add_edge(target_name_a_g, a1_type+"-"+s1)
+                        graph.add_edge(target_name, sites_names[i][k])
+
+                    # is_BND 1 elt
+                    if s1 in LHS[a1]['sites'].keys() and\
+                       LHS[a1]['sites'][s1]['binding'] == '_':
+
+                        isbnd_name_a_g = gen_name("is_BND", action_graph)
+                        action_graph.add_node(isbnd_name_a_g, "is_BND")
+
+                        sbnd1_name_a_g = gen_node("s_BND", "s_BND", isbnd_name_a_g, action_graph)
+
+                        isbnd_name = gen_name("is_BND")
+                        graph.add_node(isbnd_name, isbnd_name_a_g)
+
+                        sbnd1_name = gen_node("s_BND", sbnd1_name_a_g, isbnd_name)
+
+                        action_graph.add_edge(a1_type+"-"+s1, sbnd1_name_a_g)
+                        graph.add_edge(sites_names[i][k], sbnd1_name)
+
+                for j in range(i+1, len(agents)):
+                    a2 = agents[j]
+                    if a2 in LHS.keys() and a2 in RHS.keys():
+
+                        if a2 in LHS.keys():
+                            a2_type = LHS[a2]['name']
+                        else:
+                            a2_type = RHS[a2]['name']
+
+                        for k in range(len(a_sites[i])):
+                            for l in range(k, len(a_sites[j])):
+                                s1 = a_sites[i][k][0]
+                                s2 = a_sites[j][l][0]
+                                if s1 in LHS[a1]['sites'].keys() and\
+                                   s1 in RHS[a1]['sites'].keys() and\
+                                   s2 in LHS[a2]['sites'].keys() and\
+                                   s2 in RHS[a2]['sites'].keys():
+
+                                    old_bind1 = LHS[a1]['sites'][s1]["binding"]
+                                    old_bind2 = LHS[a2]['sites'][s2]["binding"]
+
+                                    new_bind1 = RHS[a1]['sites'][s1]["binding"]
+                                    new_bind2 = RHS[a2]['sites'][s2]["binding"]
+
+                                    if old_bind1 == old_bind2 and\
+                                       old_bind1 is not None:
+                                      if new_bind1 == old_bind1 and\
+                                          new_bind2 == old_bind2:
+
+                                          # isBND 2 elts
+
+                                          isbnd_name_a_g = gen_name("is_BND", action_graph)
+                                          action_graph.add_node(isbnd_name_a_g, "is_BND")
+
+                                          sbnd1_name_a_g = gen_node("s_BND", "s_BND", isbnd_name_a_g, action_graph)
+                                          sbnd2_name_a_g = gen_node("s_BND", "s_BND", isbnd_name_a_g, action_graph)
+
+                                          isbnd_name = gen_name("is_BND")
+                                          graph.add_node(isbnd_name, isbnd_name_a_g)
+
+                                          sbnd1_name = gen_node("s_BND", sbnd1_name_a_g, isbnd_name)
+                                          sbnd2_name = gen_node("s_BND", sbnd2_name_a_g, isbnd_name)
+
+                                          action_graph.add_edge(a1_type+"-"+s1, sbnd1_name_a_g)
+                                          action_graph.add_edge(a2_type+"-"+s2, sbnd2_name_a_g)
+                                          graph.add_edge(sites_names[i][k], sbnd1_name)
+                                          graph.add_edge(sites_names[j][l], sbnd2_name)
+
+                                      else:
+
+                                          if old_bind1 != "_":
+
+                                              # BRK
+
+                                              brk_name_a_g = gen_name("BRK", action_graph)
+                                              action_graph.add_node(brk_name_a_g, "BRK")
+
+                                              tbrk1_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
+                                              tbrk2_name_a_g = gen_node("t_BRK", "t_BRK", brk_name_a_g, action_graph)
+
+                                              brk_name = gen_name("BRK")
+                                              graph.add_node(brk_name, brk_name_a_g)
+
+                                              tbrk1_name = gen_node("t_BRK", tbrk1_name_a_g, brk_name)
+                                              tbrk2_name = gen_node("t_BRK", tbrk2_name_a_g, brk_name)
+
+                                              action_graph.add_edge(tbrk1_name_a_g, a1_type+"-"+s1)
+                                              action_graph.add_edge(tbrk2_name_a_g, a2_type+"-"+s2)
+                                              graph.add_edge(tbrk1_name, sites_names[i][k])
+                                              graph.add_edge(tbrk2_name, sites_names[j][l])
+                                    else:
+                                        if new_bind1 == new_bind2:
+
+                                            # BND
+
+                                            bnd_name_a_g = gen_name("BND", action_graph)
+                                            action_graph.add_node(bnd_name_a_g, "BND")
+
+                                            sbnd1_name_a_g = gen_node("s_BND", "s_BND", bnd_name_a_g, action_graph)
+                                            sbnd2_name_a_g = gen_node("s_BND", "s_BND", bnd_name_a_g, action_graph)
+
+                                            bnd_name = gen_name("BND")
+                                            graph.add_node(bnd_name, bnd_name_a_g)
+
+                                            sbnd1_name = gen_node("s_BND", sbnd1_name_a_g, bnd_name)
+                                            sbnd2_name = gen_node("s_BND", sbnd2_name_a_g, bnd_name)
+
+                                            action_graph.add_edge(a1_type+"-"+s1, sbnd1_name_a_g)
+                                            action_graph.add_edge(a2_type+"-"+s2, sbnd2_name_a_g)
+                                            graph.add_edge(sites_names[i][k], sbnd1_name)
+                                            graph.add_edge(sites_names[j][l], sbnd2_name)
+            elif a1 in RHS.keys():
+
+                # a1 have been created
+
+                for j in range(len(agents)):
+                    if i != j :
+                        a2 = agents[j]
+                        if a2 in RHS.keys() and\
+                           {a2, a1} not in bounds:
+
+                            # a2 have been created or was already here
+
+                            a2_type = RHS[a2]['name']
+
+                            for k in range(len(a_sites[i])):
+                                for l in range(k, len(a_sites[j])):
+                                    s1 = a_sites[i][k][0]
+                                    s2 = a_sites[j][l][0]
+
+                                    if s1 in RHS[a1]['sites'].keys() and\
+                                       s2 in RHS[a2]['sites'].keys():
+
+                                        new_bind1 = RHS[a1]['sites'][s1]["binding"]
+                                        new_bind2 = RHS[a2]['sites'][s2]["binding"]
+
+                                        if new_bind1 == new_bind2 and (new_bind1 is not None):
+
+                                                # BND between two syntesized nodes
+
+                                                bnd_name_a_g = gen_name("BND", action_graph)
+                                                action_graph.add_node(bnd_name_a_g, "BND")
+
+                                                sbnd1_name_a_g = gen_node("s_BND", "s_BND", bnd_name_a_g, action_graph)
+                                                sbnd2_name_a_g = gen_node("s_BND", "s_BND", bnd_name_a_g, action_graph)
+
+                                                bnd_name = gen_name("BND")
+                                                graph.add_node(bnd_name, bnd_name_a_g)
+
+                                                sbnd1_name = gen_node("s_BND", sbnd1_name_a_g, bnd_name)
+                                                sbnd2_name = gen_node("s_BND", sbnd2_name_a_g, bnd_name)
+
+                                                action_graph.add_edge(a1_type+"-"+s1, sbnd1_name_a_g)
+                                                action_graph.add_edge(a2_type+"-"+s2, sbnd2_name_a_g)
+                                                graph.add_edge(sites_names[i][k], sbnd1_name)
+                                                graph.add_edge(sites_names[j][l], sbnd2_name)
+
+                                                bounds.append({a1,a2})
+
+
+    @staticmethod
+    def uncompile_rules(rules, action_graph):
+        graph = TypedDiGraph()
+        for i in range(len(rules)):
+            KappaImporter.uncompile_rule(rules[i], graph, action_graph, str(i))
+        return graph
+
+    @staticmethod
+    def uncompile(files, parser="bioruler/library/kappa_to_graph.byte", out="out", del_out=True, list_=True):
+        if out[-1] != "/":
+            out += "/"
+
+        if not os.path.exists(out):
+            os.makedirs(out)
+
+        if list_ :
+            nug_list = []
+
+            subprocess.check_call(("./%s %s -path %s" % (parser, " ".join(files), out)).split(" "))
+
+            f_a = open(out+'agents.json', 'r+')
+            f_r = open(out+'rules.json', 'r+')
+
+            agents_ = json.loads(f_a.read())
+            action_graph = KappaImporter.uncompile_agents(agents_)
+            rules = json.loads(f_r.read())
+            for rule in rules:
+                nugget = TypedDiGraph()
+                KappaImporter.uncompile_rule(rule, nugget, action_graph)
+
+                nug_list.append(nugget)
+
+            for nugget in nug_list:
+                nugget.metamodel_ = action_graph
+                nugget.hom = TypedHomomorphism.canonic(nugget, action_graph)
+
+            if del_out:
+                subprocess.check_call(("rm -rf %s %s %s" % (out+"rules.ka", out+"rules.json", out+"agents.json")).split(" "))
+                try:
+                    subprocess.check_call(("rmdir %s" % out).split(" "))
+                except subprocess.CalledProcessError:
+                    pass
+
+            return action_graph, nug_list
+        else:
+            subprocess.check_call(("./%s %s -path %s" % (parser, " ".join(files), out)).split(" "))
+
+            f_a = open(out+'agents.json', 'r+')
+            f_r = open(out+'rules.json', 'r+')
+
+            agents = json.loads(f_a.read())
+            rules = json.loads(f_r.read())
+
+            action_graph = KappaImporter.uncompile_agents(agents)
+            graph = KappaImporter.uncompile_rules(rules, action_graph)
+
+            graph.metamodel_ = action_graph
+            graph.hom = TypedHomomorphism.canonic(graph, action_graph)
+
+            if del_out:
+                subprocess.check_call(("rm -rf %s" % (out)).split(" "))
+
+            return action_graph, graph
