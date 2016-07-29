@@ -85,3 +85,13 @@ Please find examples of use in kappa_graph_kappa.py and test_kappa.py, you can t
 or
 
 ```python kappa_graph_kappa.py``` you will need a test.ka file in the current directory containing some kappa code to import and to export back
+
+## How to compile kappa_to_graph.ml
+
+You'll need to clone [Kappa-Dev/KaSim](https://github.com/Kappa-Dev/KaSim) repository, and to install [Yojson](http://mjambon.com/yojson.html) package. Then put kappa_to_graph.ml on the root folder of KaSim and run
+
+```
+ocamlbuild -pkg yojson kappa_to_graph.byte
+```
+
+You can now use the outputed file as parser in ```KappaExporter```'s ```uncompile``` method.
