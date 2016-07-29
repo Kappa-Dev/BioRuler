@@ -264,7 +264,7 @@ class BioPAXImporter():
                                             (resulting_entity.getEntityReference().getUri(),
                                              f.getUri(), 0))
 
-                    # Extract phenomenological modifications (Voodoo starts here)
+                    # Extract modifications of phenomenological states (Voodoo starts here)
                     lhs_complexes = []
                     rhs_complexes = []
                     for el in LHS:
@@ -285,7 +285,6 @@ class BioPAXImporter():
                                     {"sources": {}, "targets": []}
 
                                 for controller in reaction.getController():
-                                    print(controller.getName())
                                     if controller.getModelInterface() !=\
                                        self.data_.complex_class_:
                                         entity = controller.getEntityReference().getUri()
@@ -293,28 +292,9 @@ class BioPAXImporter():
                                         entity = controller.getUri()
                                     modification_data[uri]["sources"][entity] = []
                                     for f in controller.getFeature():
-                                        print("\t\t", f)
                                         modification_data[uri]["sources"][entity].append(
                                             f.getUri()
                                         )
-
-                                print("LHS ", lhs_complexes[0].getName())
-                                for f in lhs_complexes[0].getFeature():
-                                    print("\t", f)
-                                for component in lhs_components:
-                                    entity = self.data_.model_.getByID(component)
-                                    print("\t", entity.getName())
-                                    for f in entity.getFeature():
-                                        print("\t\t", f)
-
-                                print("RHS ", rhs_complexes[0].getName())
-                                for f in rhs_complexes[0].getFeature():
-                                    print("\t", f)
-                                for component in rhs_components:
-                                    entity = self.data_.model_.getByID(component)
-                                    print("\t", entity.getName())
-                                    for f in entity.getFeature():
-                                        print("\t\t", f)
 
                                 intersection = lhs_components.intersection(rhs_components)
                                 l_difference = lhs_components.difference(rhs_components)
@@ -343,27 +323,18 @@ class BioPAXImporter():
                                         right_ref_entity.append((entity.getUri(), entity))
                                 if l_ref == r_ref:
                                     for ref, entity in right_ref_entity:
-                                        print("\t", entity.getName())
                                         for left_ref, left_entity in left_ref_entity:
                                             if ref == left_ref:
                                                 for f in entity.getFeature():
                                                     if f not in left_entity.getFeature():
-                                                        print("\t\t\t", f, "1 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (ref, f.getUri(), 1)
                                                         )
-                                                    else:
-                                                        pass
-                                                        print("\t\t\t", f, "1 - no")
                                                 for f in left_entity.getFeature():
                                                     if f not in entity.getFeature():
-                                                        print("\t\t\t", f, "0 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (ref, f.getUri(), 0)
                                                         )
-                                                    else:
-                                                        pass
-                                                        print("\t\t\t", f, "0 - no")
                                 else:
                                     if len(l_ref) == 1 and len(r_ref) == 1:
                                         left_entity = self.data_.model_.getByID(list(l_ref)[0])
@@ -372,27 +343,18 @@ class BioPAXImporter():
                                            self.data_.small_molecule_reference_class_ and\
                                            right_entity.getModelInterface() ==\
                                            self.data_.small_molecule_reference_class_:
-                                            print("SMALL MOLECULE MODIFICATION: ")
                                             for el in intersection:
                                                 entity = self.data_.model_.getByID(el)
                                                 for f in rhs_complexes[0].getFeature():
                                                     if f not in lhs_complexes[0].getFeature():
-                                                        print("\t\t\t", f, "1 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (entity.getEntityReference().getUri(), f.getUri(), 1)
                                                         )
-                                                    else:
-                                                        pass
-                                                        print("\t\t\t", f, "1 - no")
                                                 for f in lhs_complexes[0].getFeature():
                                                     if f not in rhs_complexes[0].getFeature():
-                                                        print("\t\t\t", f, "0 - yes")
                                                         modification_data[uri]["targets"].append(
                                                             (entity.getEntityReference().getUri(), f.getUri(), 0)
                                                         )
-                                                    else:
-                                                        pass
-                                                        print("\t\t\t", f, "0 - no")
         return modification_data
 
     # def collect_bindings(self, ignore_families=False):
@@ -593,7 +555,7 @@ class BioPAXImporter():
         graph.add_nodes_from(nodes)
         graph.add_edges_from(edges)
 
-    def generate_modification(self, modifications, graph):
+    def generate_modifications(self, modifications, graph):
         """Generate the nodes in the action graph and the nuggets for modifications."""
         print("Generating nodes for modifications...")
 
@@ -765,7 +727,7 @@ class BioPAXImporter():
         self.generate_families(agents["small_molecule_families"], graph)
         self.generate_complexes(agents["complexes"], graph)
         self.generate_families(agents["complex_families"], graph)
-        modification_nuggets = self.generate_modification(
+        modification_nuggets = self.generate_modifications(
             actions["MOD"], graph)
 
         return graph, modification_nuggets
